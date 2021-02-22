@@ -1,0 +1,250 @@
+{
+    "name": "PL_Cmn_ResumeADW",
+    "properties": {
+        "description": "This pipeline would resume the Azure Data Warehouse if it is in paused State at the start of data flows",
+        "activities": [
+            {
+                "name": "ACT_Cmn_GetOAuthToken",
+                "description": "This activity would get the token for accessing ADW",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetSecretNameValue",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://login.microsoftonline.com/',pipeline().parameters.TenantID,'/oauth2/token')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": {
+                        "value": "@concat('grant_type=client_credentials&resource=https://management.azure.com&client_id=',pipeline().parameters.ClientID,'&client_secret=',encodeUriComponent(activity('ACT_Cmn_GetSecretNameValue').output.value))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_CheckADWStatus",
+                "description": "This activity is used to check the status of ADW",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetOAuthToken",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.Subscription,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.ADWName,'?api-version=2014-04-01')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "headers": {
+                        "Authorization": {
+                            "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                            "type": "Expression"
+                        }
+                    },
+                    "body": " "
+                }
+            },
+            {
+                "name": "ACT_Cmn_RetryTillADWResumes",
+                "description": "This activity would run until ADW is resumed",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_ResumeIfPaused",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('ACT_Cmn_ReCheckADWStatus').output.properties.status,'Online')",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Cmn_ReCheckADWStatus",
+                            "description": "This activity is used to check the status of ADW",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.Subscription,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.ADWName,'?api-version=2014-04-01')",
+                                    "type": "Expression"
+                                },
+                                "method": "GET",
+                                "headers": {
+                                    "Authorization": {
+                                        "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                                        "type": "Expression"
+                                    }
+                                },
+                                "body": " "
+                            }
+                        },
+                        {
+                            "name": "ACT_Cmn_WaitFor10Sec",
+                            "description": "This activity would wait for 10 secs",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_ReCheckADWStatus",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 10
+                            }
+                        }
+                    ],
+                    "timeout": "7.00:00:00"
+                }
+            },
+            {
+                "name": "ACT_Cmn_ResumeIfPaused",
+                "description": "This activity is used to check if the ADW is in Online Status and if it is paused then it Resumes the ADW",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_CheckADWStatus",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('ACT_Cmn_CheckADWStatus').output.properties.status,'Online')",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "ACT_Cmn_ResumeADW",
+                            "description": "This activity will resume the ADW",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.Subscription,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.ADWName,'/resume?api-version=2014-04-01-preview')",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "headers": {
+                                    "Authorization": {
+                                        "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                                        "type": "Expression"
+                                    }
+                                },
+                                "body": " "
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "ACT_Cmn_GetSecretNameValue",
+                "description": "Fetches the value of secret from key vault having RBAC access on server",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://',pipeline().parameters.KeyVaultName,'.vault.azure.net/secrets/',pipeline().parameters.SecretName,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "TenantID": {
+                "type": "string"
+            },
+            "ClientID": {
+                "type": "string"
+            },
+            "Subscription": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            },
+            "ServerName": {
+                "type": "string"
+            },
+            "ADWName": {
+                "type": "string"
+            },
+            "KeyVaultName": {
+                "type": "string"
+            },
+            "SecretName": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-02-10T10:04:12Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
