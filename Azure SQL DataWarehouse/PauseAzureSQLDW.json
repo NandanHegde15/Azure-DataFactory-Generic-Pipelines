@@ -1,0 +1,230 @@
+{
+    "name": "PL_Cmn_PauseADW",
+    "properties": {
+        "description": "This pipeline would pause the Azure Data Warehouse after every pipeline flow, if there is no active query running on ADW",
+        "activities": [
+            {
+                "name": "ACT_Cmn_GetOAuthToken",
+                "description": "This activity would get the token for accessing the ADW",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetSecretNameValue",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://login.microsoftonline.com/',pipeline().parameters.TenantID,'/oauth2/token')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": {
+                        "value": "@concat('grant_type=client_credentials&resource=https://management.azure.com&client_id=',pipeline().parameters.ClientID,'&client_secret=',encodeUriComponent(activity('ACT_Cmn_GetSecretNameValue').output.value))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_CheckADWStatus",
+                "description": "This activity is used to check the status of ADW",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetOAuthToken",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.Subscription,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.ADWName,'?api-version=2014-04-01')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "headers": {
+                        "Authorization": {
+                            "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                            "type": "Expression"
+                        }
+                    },
+                    "body": " "
+                }
+            },
+            {
+                "name": "ACT_Cmn_PauseIfOnline",
+                "description": "This activity would Pause the ADW if it is in resumed state and if there are no active query running on ADW",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_IfActiveQueryExists",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@and(equals(activity('ACT_Cmn_CheckADWStatus').output.properties.status,'Online'),equals(activity('ACT_Cmn_GetActiveQueries').output.count,0))",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ACT_Cmn_PauseADW",
+                            "description": "This activity would pause the ADW",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.Subscription,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.ADWName,'/pause?api-version=2014-04-01-preview')",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "headers": {
+                                    "Authorization": {
+                                        "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                                        "type": "Expression"
+                                    }
+                                },
+                                "body": " "
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "ACT_Cmn_IfActiveQueryExists",
+                "description": "This activity would check the active query running on ADW",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_CheckADWStatus",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('ACT_Cmn_CheckADWStatus').output.properties.status,'Online')",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ACT_Cmn_GetActiveQueries",
+                            "description": "This lookup would get the active queries from ADW",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlDWSource",
+                                    "sqlReaderQuery": "SELECT * \nFROM sys.dm_pdw_exec_requests \nWHERE status not in ('Completed','Failed','Cancelled')\n  AND session_id <> session_id()\nORDER BY submit_time DESC;",
+                                    "partitionOption": "None"
+                                },
+                                "dataset": {
+                                    "referenceName": "DS_Cmn_AEDW",
+                                    "type": "DatasetReference"
+                                },
+                                "firstRowOnly": false
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "ACT_Cmn_GetSecretNameValue",
+                "description": "Fetches the value of secret from key vault.",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://',pipeline().parameters.KeyVaultName,'.vault.azure.net/secrets/',pipeline().parameters.SecretName,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "TenantID": {
+                "type": "string"
+            },
+            "ClientID": {
+                "type": "string"
+            },
+            "Subscription": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            },
+            "ServerName": {
+                "type": "string"
+            },
+            "ADWName": {
+                "type": "string"
+            },
+            "KeyVaultName": {
+                "type": "string"
+            },
+            "SecretName": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-02-10T10:05:18Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
