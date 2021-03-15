@@ -1,0 +1,66 @@
+{
+    "name": "DS_Cmn_CubeRefresh",
+    "properties": {
+        "description": "This dataset is used to refresh Azure analysis service.",
+        "linkedServiceName": {
+            "referenceName": "LS_Cmn_ProcessCube",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "Region": {
+                    "value": "@dataset().Region",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "Server": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "DatabaseName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "Region": {
+                "type": "string",
+                "defaultValue": ""
+            }
+        },
+        "annotations": [],
+        "type": "HttpFile",
+        "structure": [
+            {
+                "name": "refreshId",
+                "type": "Guid"
+            },
+            {
+                "name": "startTime",
+                "type": "String"
+            },
+            {
+                "name": "endTime",
+                "type": "String"
+            },
+            {
+                "name": "status",
+                "type": "String"
+            }
+        ],
+        "typeProperties": {
+            "format": {
+                "type": "JsonFormat",
+                "filePattern": "arrayOfObjects"
+            },
+            "relativeUrl": {
+                "value": "@concat(dataset().Server,'/models/',dataset().DatabaseName,'/refreshes')",
+                "type": "Expression"
+            },
+            "requestMethod": "GET",
+            "additionalHeaders": {
+                "value": "@concat('Authorization: Bearer ',string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                "type": "Expression"
+            }
+        }
+    },
+    "type": "Microsoft.DataFactory/factories/datasets"
+}
