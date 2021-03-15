@@ -1,0 +1,14 @@
+{
+    "name": "DS_Cmn_AEAPOperations",
+    "properties": {
+        "description": "This dataset can be used to pull data from Azure SQL DB",
+        "linkedServiceName": {
+            "referenceName": "LS_AzureSQLDB_Database",
+            "type": "LinkedServiceReference"
+        },
+        "annotations": [],
+        "type": "AzureSqlTable",
+        "schema": []
+    },
+    "type": "Microsoft.DataFactory/factories/datasets"
+}
