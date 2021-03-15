@@ -1,5 +1,5 @@
 {
-    "name": "DS_Cmn_AEAPOperations",
+    "name": "DS_Cmn_AzureSQLDB",
     "properties": {
         "description": "This dataset can be used to pull data from Azure SQL DB",
         "linkedServiceName": {
