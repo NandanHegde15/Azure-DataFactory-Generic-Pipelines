@@ -244,7 +244,7 @@
                         "partitionOption": "None"
                     },
                     "dataset": {
-                        "referenceName": "DS_Cmn_AEAPOperations",
+                        "referenceName": "DS_Cmn_AzureSQLDB",
                         "type": "DatasetReference"
                     },
                     "firstRowOnly": false
