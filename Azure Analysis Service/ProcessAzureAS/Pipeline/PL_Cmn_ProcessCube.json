@@ -1,0 +1,322 @@
+{
+    "name": "PL_Cmn_ProcessCube",
+    "properties": {
+        "description": "This pipeline would process the Azure Analysis Service",
+        "activities": [
+            {
+                "name": "ACT_Cmn_GetOAuthToken",
+                "description": "This activity is used for acquiring token for accessing AAS",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetCubeProcessingSecretNameValue",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://login.microsoftonline.com/',pipeline().parameters.TenantID,'/oauth2/token')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": {
+                        "value": "@concat('grant_type=client_credentials&resource=https://*.asazure.windows.net&client_id=',pipeline().parameters.CubeProcessingClientID,'&client_secret=',encodeUriComponent(activity('ACT_Cmn_GetCubeProcessingSecretNameValue').output.value))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_ProcessCube",
+                "description": "This activity would start the AAS processing",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetOAuthToken",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://',pipeline().parameters.Region,'.asazure.windows.net/servers/',pipeline().parameters.Server,'/models/',pipeline().parameters.DatabaseName,'/refreshes')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Authorization": {
+                            "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                            "type": "Expression"
+                        }
+                    },
+                    "body": {
+                        "Type": "Full",
+                        "CommitMode": "transactional",
+                        "MaxParallelism": 10,
+                        "RetryCount": 2
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_GetCubeRefreshData",
+                "description": "This activity would get the information about refreshed data like StartTime, EndTime and Status.",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_ProcessCube",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "HttpSource",
+                        "httpRequestTimeout": "00:01:40"
+                    },
+                    "dataset": {
+                        "referenceName": "DS_Cmn_CubeRefresh",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "Server": {
+                                "value": "@pipeline().parameters.Server",
+                                "type": "Expression"
+                            },
+                            "DatabaseName": {
+                                "value": "@pipeline().parameters.DatabaseName",
+                                "type": "Expression"
+                            },
+                            "Region": {
+                                "value": "@pipeline().parameters.Region",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "ACT_Cmn_FilterCubeRefreshData",
+                "description": "Filter outs the individual tables refresh status",
+                "type": "Filter",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_GetCubeRefreshData",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('ACT_Cmn_GetCubeRefreshData').output.value",
+                        "type": "Expression"
+                    },
+                    "condition": {
+                        "value": "@greaterOrEquals(item().startTime,addseconds(activity('ACT_Cmn_ProcessCube').output.startTime,-30))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_UntilRefreshCompletes",
+                "description": "This activity would wait until all the tables are refreshed.",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_FilterCubeRefreshData",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(activity('ACT_Cmn_CheckRefreshStatus').output.status,'inProgress'))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Cmn_WaitFor30Sec",
+                            "description": "This activity would wait for 30 sec",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 30
+                            }
+                        },
+                        {
+                            "name": "ACT_Cmn_CheckRefreshStatus",
+                            "description": "This activity would check the refresh status",
+                            "type": "WebActivity",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_WaitFor30Sec",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://',pipeline().parameters.Region,'.asazure.windows.net/servers/',pipeline().parameters.Server,'/models/',pipeline().parameters.DatabaseName,'/refreshes/',activity('ACT_Cmn_FilterCubeRefreshData').output.Value[0].refreshId)",
+                                    "type": "Expression"
+                                },
+                                "method": "GET",
+                                "headers": {
+                                    "Authorization": {
+                                        "value": "@concat(string(activity('ACT_Cmn_GetOAuthToken').output.token_type),' ',string(activity('ACT_Cmn_GetOAuthToken').output.access_token))",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "7.00:00:00"
+                }
+            },
+            {
+                "name": "ACT_Cmn_ValidateCubeIsRefreshedSuccessfully",
+                "description": "This lookup checks if the cube is refreshed successfully and if not then it throws error message.",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_UntilRefreshCompletes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureSqlSource",
+                        "sqlReaderQuery": {
+                            "value": "@if(equals(activity('ACT_Cmn_CheckRefreshStatus').output.status,'failed'),concat('Throw 51000,','''','Cube is not Refreshed','''',',','1'),concat('select ','''','Cube is refreshed',''''))",
+                            "type": "Expression"
+                        },
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "DS_Cmn_AEAPOperations",
+                        "type": "DatasetReference"
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "ACT_Cmn_GetCubeProcessingSecretNameValue",
+                "description": "Fetches the value of secret from key vault.",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://',pipeline().parameters.KeyVaultName,'.vault.azure.net/secrets/',pipeline().parameters.CubeProcessingSecretName,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "TenantID": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "CubeProcessingClientID": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "SubscriptionID": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "Region": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "Server": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "DatabaseName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "KeyVaultName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "CubeProcessingSecretName": {
+                "type": "string",
+                "defaultValue": ""
+            }
+        },
+        "variables": {
+            "IsCubeRefreshed": {
+                "type": "String"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-03-04T08:06:47Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
