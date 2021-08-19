@@ -1,0 +1,187 @@
+{
+    "name": "ADF_Parallel_Arch",
+    "properties": {
+        "activities": [
+            {
+                "name": "Act_1",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Act_1",
+                    "value": {
+                        "value": "@pipeline().parameters.Act_1",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Act_2",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Act_2",
+                    "value": {
+                        "value": "@pipeline().parameters.Act_2",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Act_3",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Act_3",
+                    "value": {
+                        "value": "@pipeline().parameters.Act_3",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "OnAllSuccess",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "Act_1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Act_2",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Act_3",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            },
+            {
+                "name": "OnAllFailure",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "Act_1",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    },
+                    {
+                        "activity": "Act_2",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    },
+                    {
+                        "activity": "Act_3",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            },
+            {
+                "name": "OnAny1TaskFailure",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Act_1",
+                        "dependencyConditions": [
+                            "Completed"
+                        ]
+                    },
+                    {
+                        "activity": "Act_2",
+                        "dependencyConditions": [
+                            "Completed"
+                        ]
+                    },
+                    {
+                        "activity": "Act_3",
+                        "dependencyConditions": [
+                            "Completed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "ErrorMsg",
+                    "value": {
+                        "value": "@concat(activity('Act_1').error?.message,'^|',activity('Act_2')?.error?.message,'^|',activity('Act_3')?.error?.message)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "SetArrayErrorMsg",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "OnAny1TaskFailure",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "ErrorMsgArray",
+                    "value": {
+                        "value": "@split(variables('ErrorMsg'),'^|')",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "Act_1": {
+                "type": "string",
+                "defaultValue": "1"
+            },
+            "Act_2": {
+                "type": "string",
+                "defaultValue": "2"
+            },
+            "Act_3": {
+                "type": "string"
+            }
+        },
+        "variables": {
+            "ErrorMsg": {
+                "type": "String"
+            },
+            "ErrorMsgArray": {
+                "type": "Array"
+            },
+            "Act_1": {
+                "type": "String"
+            },
+            "Act_2": {
+                "type": "String"
+            },
+            "Act_3": {
+                "type": "String"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-08-19T06:19:07Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
