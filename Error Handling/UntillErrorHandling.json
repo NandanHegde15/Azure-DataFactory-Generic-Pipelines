@@ -1,0 +1,172 @@
+{
+    "name": "UntillExceptionHandling",
+    "properties": {
+        "activities": [
+            {
+                "name": "Untill Counter",
+                "type": "Until",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(equals(2,int(variables('Counter'))),not(equals(variables('ErrorHandling'),'')))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Wait",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set Assignments",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 1
+                            }
+                        },
+                        {
+                            "name": "SetTempCounter",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Wait",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "TempCounter",
+                                "value": {
+                                    "value": "@string(add(int(variables('Counter')),1))",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "SetCounter",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "SetTempCounter",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "Counter",
+                                "value": {
+                                    "value": "@variables('TempCounter')",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Set Assignments",
+                            "type": "SetVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "DummyFailure",
+                                "value": {
+                                    "value": "@pipeline().parameters.Test",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "ErrorHandling",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Wait",
+                                    "dependencyConditions": [
+                                        "Completed",
+                                        "Skipped"
+                                    ]
+                                },
+                                {
+                                    "activity": "Set Assignments",
+                                    "dependencyConditions": [
+                                        "Completed"
+                                    ]
+                                },
+                                {
+                                    "activity": "SetTempCounter",
+                                    "dependencyConditions": [
+                                        "Skipped",
+                                        "Completed"
+                                    ]
+                                },
+                                {
+                                    "activity": "SetCounter",
+                                    "dependencyConditions": [
+                                        "Failed",
+                                        "Skipped"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "ErrorHandling",
+                                "value": {
+                                    "value": "@concat(activity('Set Assignments').error?.message,'^|',activity('Wait')?.error?.message,'^|',activity('SetTempCounter')?.error?.message,'^|',activity('SetCounter')?.error?.message)",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "ExitWait",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "Untill Counter",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            }
+        ],
+        "parameters": {
+            "Test": {
+                "type": "string"
+            }
+        },
+        "variables": {
+            "Counter": {
+                "type": "String",
+                "defaultValue": "0"
+            },
+            "TempCounter": {
+                "type": "String",
+                "defaultValue": "0"
+            },
+            "ErrorHandling": {
+                "type": "String"
+            },
+            "DummyFailure": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-08-30T09:18:36Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
