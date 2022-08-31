@@ -1,0 +1,193 @@
+{
+    "name": "ExcelIteration",
+    "properties": {
+        "activities": [
+            {
+                "name": "UntilExcelSheetIteration",
+                "type": "Until",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(variables('ErrorHandling'),''))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "SetTempCounter",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Convert Excel Sheet into CSV",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "TempCounter",
+                                "value": {
+                                    "value": "@string(add(int(variables('Counter')),1))",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "SetCounter",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "SetTempCounter",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "Counter",
+                                "value": {
+                                    "value": "@variables('TempCounter')",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Convert Excel Sheet into CSV",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "ExcelSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": false,
+                                        "enablePartitionDiscovery": false
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "ExcelSource",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "SheetIndex": {
+                                            "value": "@int(variables('Counter'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "CSVSink",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "SheetIndex": {
+                                            "value": "@variables('Counter')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Set Error Handling",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Convert Excel Sheet into CSV",
+                                    "dependencyConditions": [
+                                        "Completed"
+                                    ]
+                                },
+                                {
+                                    "activity": "SetTempCounter",
+                                    "dependencyConditions": [
+                                        "Completed",
+                                        "Skipped"
+                                    ]
+                                },
+                                {
+                                    "activity": "SetCounter",
+                                    "dependencyConditions": [
+                                        "Failed",
+                                        "Skipped"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "ErrorHandling",
+                                "value": {
+                                    "value": "@concat(activity('Convert Excel Sheet into CSV').error?.message,'^|',activity('SetTempCounter')?.error?.message,'^|',activity('SetCounter')?.error?.message)",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "Wait on Completion",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "UntilExcelSheetIteration",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            }
+        ],
+        "variables": {
+            "ErrorHandling": {
+                "type": "String"
+            },
+            "Counter": {
+                "type": "String",
+                "defaultValue": "0"
+            },
+            "TempCounter": {
+                "type": "String",
+                "defaultValue": "0"
+            }
+        },
+        "annotations": []
+    }
+}
