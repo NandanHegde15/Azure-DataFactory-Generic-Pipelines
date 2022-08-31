@@ -1,0 +1,31 @@
+{
+    "name": "CSVSink",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "LS_AzureStorage",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "SheetIndex": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": {
+                    "value": "@concat('Test',dataset().SheetIndex,'.csv')",
+                    "type": "Expression"
+                },
+                "container": "test"
+            },
+            "columnDelimiter": ",",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "quoteChar": "\""
+        },
+        "schema": []
+    }
+}
