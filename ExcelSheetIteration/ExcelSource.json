@@ -1,0 +1,29 @@
+{
+    "name": "ExcelSource",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "LS_AzureStorage",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "SheetIndex": {
+                "type": "int"
+            }
+        },
+        "annotations": [],
+        "type": "Excel",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "ADFExcelIterationPOC.xlsx",
+                "container": "test"
+            },
+            "sheetIndex": {
+                "value": "@dataset().SheetIndex",
+                "type": "Expression"
+            },
+            "firstRowAsHeader": true
+        },
+        "schema": []
+    }
+}
