@@ -1,0 +1,176 @@
+{
+    "name": "ExcelIterationParallel",
+    "properties": {
+        "activities": [
+            {
+                "name": "Get Excel Sheet Details",
+                "type": "GetMetadata",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "ExcelSource",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "SheetIndex": 50
+                        }
+                    },
+                    "fieldList": [
+                        "structure"
+                    ],
+                    "storeSettings": {
+                        "type": "AzureBlobStorageReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                    }
+                }
+            },
+            {
+                "name": "Set Max Sheet Index",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Get Excel Sheet Details",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Max Sheet Index",
+                    "value": {
+                        "value": "@replace(split(activity('Get Excel Sheet Details').error.message,'..')[1],')','')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Set Sheet Index Range",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Set Max Sheet Index",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Sheet Index Range",
+                    "value": {
+                        "value": "@range(0,add(1,int(variables('Max Sheet Index'))))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Parallel Iteration",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Set Sheet Index Range",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@variables('Sheet Index Range')",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Convert Excel Sheet into CSV",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "ExcelSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": false,
+                                        "enablePartitionDiscovery": false
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "ExcelSource",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "SheetIndex": {
+                                            "value": "@item()",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "CSVSink",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "SheetIndex": {
+                                            "value": "@item()",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ],
+        "variables": {
+            "Max Sheet Index": {
+                "type": "String"
+            },
+            "Sheet Index Range": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-09-04T06:12:13Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
