@@ -1,0 +1,243 @@
+{
+    "name": "Extract Data from Power BI",
+    "properties": {
+        "activities": [
+            {
+                "name": "Extract Data",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Get AAD Token",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://api.powerbi.com/v1.0/myorg/datasets/',pipeline().parameters.PBIDatasetId,'/executeQueries')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Authorization": {
+                            "value": "@concat(string(activity('Get AAD Token').output.token_type),' ',string(activity('Get AAD Token').output.access_token))",
+                            "type": "Expression"
+                        }
+                    },
+                    "body": {
+                        "queries": [
+                            {
+                                "query": "@{pipeline().parameters.Query}"
+                            }
+                        ],
+                        "serializerSettings": {
+                            "includeNulls": true
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Get AAD Token",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Get TenantId from AKV",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Get ClientId from AKV",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Get Secret from AKV",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://login.microsoftonline.com/',activity('Get TenantId from AKV').output.value,'/oauth2/token')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": {
+                        "value": "@concat('grant_type=client_credentials&resource=https://analysis.windows.net/powerbi/api&client_id=',activity('Get ClientId from AKV').output.value,'&client_secret=',encodeUriComponent(activity('Get Secret from AKV').output.value))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Get TenantId from AKV",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat(pipeline().parameters.KeyVaultDNSName,'secrets/',pipeline().parameters.SecretName_TenantId,'/',pipeline().parameters.SecretVersion_TenantId,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "body": {
+                        "simple": "body"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            },
+            {
+                "name": "Get ClientId from AKV",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat(pipeline().parameters.KeyVaultDNSName,'secrets/',pipeline().parameters.SecretName_SPClientId,'/',pipeline().parameters.SecretVersion_SPClientId,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "body": {
+                        "simple": "body"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            },
+            {
+                "name": "Get Secret from AKV",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat(pipeline().parameters.KeyVaultDNSName,'secrets/',pipeline().parameters.SecretName_SPSecret,'/',pipeline().parameters.SecretVersion_SPSecret,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "body": {
+                        "simple": "body"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            },
+            {
+                "name": "Refresh Succeeded",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(variables('RefreshStatus'),'Completed')",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Fail Pipeline",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": "https://ThrowAnError ",
+                                "method": "POST",
+                                "body": "Fail"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "SecretName_TenantId": {
+                "type": "String",
+                "defaultValue": "TenantId"
+            },
+            "SecretName_SPClientId": {
+                "type": "String",
+                "defaultValue": "ClientId"
+            },
+            "SecretName_SPSecret": {
+                "type": "String",
+                "defaultValue": "ClientSecret"
+            },
+            "KeyVaultDNSName": {
+                "type": "string"
+            },
+            "SecretVersion_TenantId": {
+                "type": "string"
+            },
+            "SecretVersion_SPClientId": {
+                "type": "string"
+            },
+            "SecretVersion_SPSecret": {
+                "type": "string"
+            },
+            "PBIDatasetId": {
+                "type": "string"
+            },
+            "Query": {
+                "type": "string"
+            }
+        },
+        "annotations": []
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
