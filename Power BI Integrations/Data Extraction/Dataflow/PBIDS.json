@@ -1,0 +1,25 @@
+{
+    "name": "PBIDS",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "PowerBIExport",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "DatasetID": {
+                    "value": "@dataset().DatasetID",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "DatasetID": {
+                "type": "string",
+                "defaultValue": "1da135fa-7ed3-43a2-ad5f-0c64d1b298ec"
+            }
+        },
+        "annotations": [],
+        "type": "RestResource",
+        "schema": []
+    },
+    "type": "Microsoft.DataFactory/factories/datasets"
+}
