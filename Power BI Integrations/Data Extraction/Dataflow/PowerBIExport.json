@@ -1,0 +1,29 @@
+{
+    "name": "PowerBIExport",
+    "type": "Microsoft.DataFactory/factories/linkedservices",
+    "properties": {
+        "parameters": {
+            "DatasetID": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "RestService",
+        "typeProperties": {
+            "url": "@concat('https://api.powerbi.com/v1.0/myorg/datasets/',linkedService().DatasetID,'/executeQueries')",
+            "enableServerCertificateValidation": true,
+            "authenticationType": "AadServicePrincipal",
+            "servicePrincipalId": "",
+            "servicePrincipalKey": {
+                "type": "AzureKeyVaultSecret",
+                "store": {
+                    "referenceName": "LS_AzureKeyvault",
+                    "type": "LinkedServiceReference"
+                },
+                "secretName": ""
+            },
+            "tenant": "",
+            "aadResourceId": "https://analysis.windows.net/powerbi/api"
+        }
+    }
+}
