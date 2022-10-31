@@ -1,0 +1,54 @@
+{
+    "name": "Extract Data from Power BI MI",
+    "properties": {
+        "activities": [
+            {
+                "name": "Extract Data",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://api.powerbi.com/v1.0/myorg/datasets/',pipeline().parameters.PBIDatasetId,'/executeQueries')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "queries": [
+                            {
+                                "query": "@{pipeline().parameters.Query}"
+                            }
+                        ],
+                        "serializerSettings": {
+                            "includeNulls": true
+                        }
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://analysis.windows.net/powerbi/api"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "Query": {
+                "type": "string",
+                "defaultValue": "EVALUATE VALUES(Date)"
+            },
+            "PBIDatasetId": {
+                "type": "string",
+                "defaultValue": ""
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-10-18T10:08:31Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
