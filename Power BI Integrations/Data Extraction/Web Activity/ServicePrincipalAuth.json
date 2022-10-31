@@ -171,38 +171,6 @@
                         "resource": "https://vault.azure.net"
                     }
                 }
-            },
-            {
-                "name": "Refresh Succeeded",
-                "type": "IfCondition",
-                "dependsOn": [],
-                "userProperties": [],
-                "typeProperties": {
-                    "expression": {
-                        "value": "@equals(variables('RefreshStatus'),'Completed')",
-                        "type": "Expression"
-                    },
-                    "ifFalseActivities": [
-                        {
-                            "name": "Fail Pipeline",
-                            "type": "WebActivity",
-                            "dependsOn": [],
-                            "policy": {
-                                "timeout": "7.00:00:00",
-                                "retry": 0,
-                                "retryIntervalInSeconds": 30,
-                                "secureOutput": false,
-                                "secureInput": false
-                            },
-                            "userProperties": [],
-                            "typeProperties": {
-                                "url": "https://ThrowAnError ",
-                                "method": "POST",
-                                "body": "Fail"
-                            }
-                        }
-                    ]
-                }
             }
         ],
         "parameters": {
