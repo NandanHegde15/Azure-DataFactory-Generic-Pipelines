@@ -1,0 +1,160 @@
+{
+    "name": "PowerBIEntityProcessing",
+    "properties": {
+        "description": "This pipeline refreshes datasets/dataflows ",
+        "activities": [
+            {
+                "name": "TriggerPowerBIRefresh",
+                "description": "This activity would start the PowerBI Dataset / Dataflow refresh",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://api.powerbi.com/v1.0/myorg/groups/',pipeline().parameters.WorkspaceId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/datasets/','/dataflows/'),pipeline().parameters.EntityId,'/refreshes')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "notifyOption": "NoNotification"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://analysis.windows.net/powerbi/api"
+                    }
+                }
+            },
+            {
+                "name": "StatusUntilPowerBIRefreshes",
+                "description": "This activity would wait until power bi dataset/dataflow has completely refreshed",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "TriggerPowerBIRefresh",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(first(json(string(activity('GetRefreshDetails').output)).value).status,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'Unknown','InProgress')))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Cmn_WaitFor300Sec",
+                            "description": "This activity would wait for 300 sec",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 300
+                            }
+                        },
+                        {
+                            "name": "GetRefreshDetails",
+                            "description": "This activity fetches refresh details of Dataset / Dataflow",
+                            "type": "WebActivity",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_WaitFor300Sec",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://api.powerbi.com/v1.0/myorg/groups/',pipeline().parameters.WorkspaceId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/datasets/','/dataflows/'),pipeline().parameters.EntityId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/refreshes?$top=1','/transactions?$top=1'))",
+                                    "type": "Expression"
+                                },
+                                "method": "GET",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://analysis.windows.net/powerbi/api"
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.04:00:00"
+                }
+            },
+            {
+                "name": "IfRefreshFailed",
+                "description": "This activity would check if refresh has failed and would throw error",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "StatusUntilPowerBIRefreshes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(first(json(string(activity('GetRefreshDetails').output)).value).status,'Failed')",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ThrowErrorOnFailure",
+                            "description": "This fail activity would provide error message for refresh failure",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": {
+                                    "value": "@if(equals(toUpper(pipeline().parameters.EntityType),'DATAFLOW'),concat(pipeline().parameters.EntityName,' failed to refresh'),string(json(first(json(string(activity('GetRefreshDetails').output))?.value)?.serviceExceptionJson)))",
+                                    "type": "Expression"
+                                },
+                                "errorCode": "51000"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "WorkspaceId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "EntityId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "EntityType": {
+                "type": "string",
+                "defaultValue": "dataset"
+            },
+            "EntityName": {
+                "type": "string"
+            }
+        },
+        "folder": {
+            "name": "PowerBI"
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-11-05T11:24:50Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
