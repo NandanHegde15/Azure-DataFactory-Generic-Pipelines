@@ -1,0 +1,246 @@
+{
+    "name": "PowerBIEntityProcessingViaServicePrincipal",
+    "properties": {
+        "description": "This pipeline refreshes datasets/dataflows via Service Principal and the EntityType parameter can be either dataset or dataflow",
+        "activities": [
+            {
+                "name": "TriggerPowerBIRefresh",
+                "description": "This activity would start the PowerBI Dataset / Dataflow refresh",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Get AAD Token",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://api.powerbi.com/v1.0/myorg/groups/',pipeline().parameters.WorkspaceId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/datasets/','/dataflows/'),pipeline().parameters.EntityId,'/refreshes')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Authorization": {
+                            "value": "@concat(string(activity('Get AAD Token').output.token_type),' ',string(activity('Get AAD Token').output.access_token))",
+                            "type": "Expression"
+                        }
+                    },
+                    "body": {
+                        "notifyOption": "NoNotification"
+                    }
+                }
+            },
+            {
+                "name": "StatusUntilPowerBIRefreshes",
+                "description": "This activity would wait until power bi dataset/dataflow has completely refreshed",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "TriggerPowerBIRefresh",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(first(json(string(activity('GetRefreshDetails').output)).value).status,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'Unknown','InProgress')))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Cmn_WaitFor300Sec",
+                            "description": "This activity would wait for 300 sec",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 300
+                            }
+                        },
+                        {
+                            "name": "GetRefreshDetails",
+                            "description": "This activity fetches refresh details of Dataset / Dataflow",
+                            "type": "WebActivity",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_WaitFor300Sec",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": true
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://api.powerbi.com/v1.0/myorg/groups/',pipeline().parameters.WorkspaceId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/datasets/','/dataflows/'),pipeline().parameters.EntityId,if(equals(toUpper(pipeline().parameters.EntityType),'DATASET'),'/refreshes?$top=1','/transactions?$top=1'))",
+                                    "type": "Expression"
+                                },
+                                "method": "GET",
+                                "headers": {
+                                    "Authorization": {
+                                        "value": "@concat(string(activity('Get AAD Token').output.token_type),' ',string(activity('Get AAD Token').output.access_token))",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.04:00:00"
+                }
+            },
+            {
+                "name": "IfRefreshFailed",
+                "description": "This activity would check if refresh has failed and would throw error",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "StatusUntilPowerBIRefreshes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(first(json(string(activity('GetRefreshDetails').output)).value).status,'Failed')",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ThrowErrorOnFailure",
+                            "description": "This fail activity would provide error message for refresh failure",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": {
+                                    "value": "@if(equals(toUpper(pipeline().parameters.EntityType),'DATAFLOW'),concat(pipeline().parameters.EntityName,' failed to refresh'),string(json(first(json(string(activity('GetRefreshDetails').output))?.value)?.serviceExceptionJson)))",
+                                    "type": "Expression"
+                                },
+                                "errorCode": "51000"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Get AAD Token",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Get Client Secret from Key Vault",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://login.microsoftonline.com/',pipeline().parameters.TenantId,'/oauth2/token')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": {
+                        "value": "@concat('grant_type=client_credentials&resource=https://analysis.windows.net/powerbi/api&client_id=',pipeline().parameters.ClientId,'&client_secret=',encodeUriComponent(activity('Get Client Secret from Key Vault').output.value))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Get Client Secret from Key Vault",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": true,
+                    "secureInput": true
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://',pipeline().parameters.KeyVaultName,'.vault.azure.net/secrets/',pipeline().parameters.ClientSecretKeyVaultSecretName,'?api-version=7.0')",
+                        "type": "Expression"
+                    },
+                    "method": "GET",
+                    "body": {
+                        "simple": "body"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://vault.azure.net"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "WorkspaceId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "EntityId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "EntityType": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "EntityName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "TenantId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "ClientId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "ClientSecretKeyVaultSecretName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "KeyVaultName": {
+                "type": "string",
+                "defaultValue": "its-av-intdnaspakv"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-11-07T15:29:52Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
