@@ -1,0 +1,130 @@
+{
+    "name": "MergingArrays",
+    "properties": {
+        "activities": [
+            {
+                "name": "JoinVar1",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "String1",
+                    "value": {
+                        "value": "@join(variables('Array1'),';')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "JoinVar2",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "String2",
+                    "value": {
+                        "value": "@join(variables('Array2'),';')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ConcatVars",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "JoinVar1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "JoinVar2",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "ConcatString3",
+                    "value": {
+                        "value": "@concat(variables('String1'),';',variables('String2'))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "SplitVar",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "ConcatVars",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "MergedArray3",
+                    "value": {
+                        "value": "@split(variables('ConcatString3'),';' )",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Final",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "FinalArray",
+                    "value": {
+                        "value": "@split(concat(join(variables('Array1'),';'),';',join(variables('Array2'),';')),';' )",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "variables": {
+            "Array1": {
+                "type": "Array",
+                "defaultValue": [
+                    1,
+                    2,
+                    3,
+                    4
+                ]
+            },
+            "Array2": {
+                "type": "Array",
+                "defaultValue": [
+                    8,
+                    7,
+                    3,
+                    4
+                ]
+            },
+            "String1": {
+                "type": "String"
+            },
+            "String2": {
+                "type": "String"
+            },
+            "ConcatString3": {
+                "type": "String"
+            },
+            "MergedArray3": {
+                "type": "Array"
+            },
+            "FinalArray": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-01-30T09:02:04Z"
+    },
+    "type": "Microsoft.Synapse/workspaces/pipelines"
+}
