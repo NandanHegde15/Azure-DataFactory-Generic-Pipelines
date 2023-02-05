@@ -1,0 +1,78 @@
+{
+    "name": "AppendStringWithIteration",
+    "properties": {
+        "activities": [
+            {
+                "name": "Iterate",
+                "type": "ForEach",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@pipeline().parameters.InputArray",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "AppendArray",
+                            "type": "AppendVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "AppArray",
+                                "value": {
+                                    "value": "@concat(item(),pipeline().parameters.InputString)",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Output",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Iterate",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Output",
+                    "value": {
+                        "value": "@variables('AppArray')",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "InputArray": {
+                "type": "array",
+                "defaultValue": [
+                    1,
+                    2,
+                    3
+                ]
+            },
+            "InputString": {
+                "type": "string",
+                "defaultValue": "abc"
+            }
+        },
+        "variables": {
+            "Output": {
+                "type": "Array"
+            },
+            "AppArray": {
+                "type": "Array"
+            }
+        },
+        "annotations": []
+    }
+}
