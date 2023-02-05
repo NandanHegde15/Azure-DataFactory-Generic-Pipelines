@@ -1,0 +1,566 @@
+{
+   "$schema":"http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+   "contentVersion":"1.0.0.0",
+   "parameters":{
+      "factoryName":{
+         "type":"string",
+         "metadata":"Data Factory name"
+      },
+      "ADLS":{
+         "type":"string"
+      }
+   },
+   "variables":{
+      "factoryId":"[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+   },
+   "resources":[
+      {
+         "name":"[concat(parameters('factoryName'), '/StorageRecursiveIterations')]",
+         "type":"Microsoft.DataFactory/factories/pipelines",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "activities":[
+               {
+                  "name":"Initial Array",
+                  "type":"SetVariable",
+                  "dependsOn":[
+                     
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "variableName":"InitialArray",
+                     "value":{
+                        "value":"@split(pipeline().parameters.InitialPath,';' )",
+                        "type":"Expression"
+                     }
+                  }
+               },
+               {
+                  "name":"RecursiveIteration",
+                  "type":"Until",
+                  "dependsOn":[
+                     {
+                        "activity":"Initial Array",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "expression":{
+                        "value":"@empty(variables('InitialArray'))",
+                        "type":"Expression"
+                     },
+                     "activities":[
+                        {
+                           "name":"GetPathMetaData",
+                           "type":"WebActivity",
+                           "dependsOn":[
+                              {
+                                 "activity":"Set Current Iteration Path",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              }
+                           ],
+                           "policy":{
+                              "timeout":"0.12:00:00",
+                              "retry":0,
+                              "retryIntervalInSeconds":30,
+                              "secureOutput":true,
+                              "secureInput":false
+                           },
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "url":{
+                                 "value":"@concat('https://datasharkx15.dfs.core.windows.net/datasharkx15/',variables('CurrentIterationPath'))",
+                                 "type":"Expression"
+                              },
+                              "method":"GET",
+                              "headers":{
+                                 "x-ms-version":"2017-11-09"
+                              },
+                              "authentication":{
+                                 "type":"MSI",
+                                 "resource":"https://storage.azure.com/"
+                              }
+                           }
+                        },
+                        {
+                           "name":"IfBasedOnResourceType",
+                           "description":"Either a file or directory",
+                           "type":"IfCondition",
+                           "dependsOn":[
+                              {
+                                 "activity":"GetPathMetaData",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              }
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "expression":{
+                                 "value":"@equals(activity('GetPathMetaData').output.ADFWebActivityResponseHeaders['x-ms-resource-type'], 'file')",
+                                 "type":"Expression"
+                              },
+                              "ifFalseActivities":[
+                                 {
+                                    "name":"Set Temp Array_2",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"GetChildItems",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"TempArray",
+                                       "value":{
+                                          "value":"@take(variables('InitialArray'),add(length(variables('InitialArray')),-1))",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Initial Array_2",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set Temp Array_2",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"InitialArray",
+                                       "value":{
+                                          "value":"@variables('TempArray')",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"GetChildItems",
+                                    "type":"GetMetadata",
+                                    "dependsOn":[
+                                       
+                                    ],
+                                    "policy":{
+                                       "timeout":"0.12:00:00",
+                                       "retry":0,
+                                       "retryIntervalInSeconds":30,
+                                       "secureOutput":false,
+                                       "secureInput":false
+                                    },
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "dataset":{
+                                          "referenceName":"DynamicBlobPath",
+                                          "type":"DatasetReference",
+                                          "parameters":{
+                                             "Path":{
+                                                "value":"@variables('CurrentIterationPath')",
+                                                "type":"Expression"
+                                             }
+                                          }
+                                       },
+                                       "fieldList":[
+                                          "childItems"
+                                       ],
+                                       "storeSettings":{
+                                          "type":"AzureBlobStorageReadSettings",
+                                          "recursive":true,
+                                          "enablePartitionDiscovery":false
+                                       },
+                                       "formatSettings":{
+                                          "type":"BinaryReadSettings"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set TempChildItem",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"GetChildItems",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"TempChildItem",
+                                       "value":{
+                                          "value":"@split(replace(replace(replace(replace(replace(replace(replace(replace(replace(string(activity('GetChildItems').output.childItems),'[{',''),'}]',''),'{',''),'}',''),'\"type\":\"Folder\"',''),'\"type\":\"File\"',''),'\"',''),'name:',''),',,',','),',')",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set FinalChildItem",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set TempChildItem",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"FinalChildItem",
+                                       "value":{
+                                          "value":"@take(variables('TempChildItem'),add(length(variables('TempChildItem')),-1))",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Temp Array_3",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set FinalChildItem",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       },
+                                       {
+                                          "activity":"Set Initial Array_2",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"TempArray",
+                                       "value":{
+                                          "value":"@union(split(concat(variables('CurrentIterationPath'),'/',join(variables('FinalChildItem'),concat(';',variables('CurrentIterationPath'),'/'))), ';'),variables('InitialArray'))",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Initial Array_3",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set Temp Array_3",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"InitialArray",
+                                       "value":{
+                                          "value":"@variables('TempArray')",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 }
+                              ],
+                              "ifTrueActivities":[
+                                 {
+                                    "name":"Set Temp Array",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"GetFileSize",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"TempArray",
+                                       "value":{
+                                          "value":"@take(variables('InitialArray'),add(length(variables('InitialArray')),-1))",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Initial Array",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set Temp Array",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"InitialArray",
+                                       "value":{
+                                          "value":"@variables('TempArray')",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"GetFileSize",
+                                    "type":"GetMetadata",
+                                    "dependsOn":[
+                                       
+                                    ],
+                                    "policy":{
+                                       "timeout":"0.12:00:00",
+                                       "retry":0,
+                                       "retryIntervalInSeconds":30,
+                                       "secureOutput":false,
+                                       "secureInput":false
+                                    },
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "dataset":{
+                                          "referenceName":"DynamicFilePath",
+                                          "type":"DatasetReference",
+                                          "parameters":{
+                                             "FilePath":{
+                                                "value":"@variables('CurrentIterationPath')",
+                                                "type":"Expression"
+                                             }
+                                          }
+                                       },
+                                       "fieldList":[
+                                          "size"
+                                       ],
+                                       "storeSettings":{
+                                          "type":"AzureBlobStorageReadSettings",
+                                          "recursive":true,
+                                          "enablePartitionDiscovery":false
+                                       },
+                                       "formatSettings":{
+                                          "type":"BinaryReadSettings"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Temp Size",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"GetFileSize",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"TempSize",
+                                       "value":{
+                                          "value":"@string(add(int(variables('FinalSize')),activity('GetFileSize').output.size))",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 },
+                                 {
+                                    "name":"Set Final Size",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       {
+                                          "activity":"Set Temp Size",
+                                          "dependencyConditions":[
+                                             "Succeeded"
+                                          ]
+                                       }
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"FinalSize",
+                                       "value":{
+                                          "value":"@variables('TempSize')",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 }
+                              ]
+                           }
+                        },
+                        {
+                           "name":"Set Current Iteration Path",
+                           "type":"SetVariable",
+                           "dependsOn":[
+                              
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "variableName":"CurrentIterationPath",
+                              "value":{
+                                 "value":"@last(variables('InitialArray'))",
+                                 "type":"Expression"
+                              }
+                           }
+                        }
+                     ],
+                     "timeout":"0.12:00:00"
+                  }
+               }
+            ],
+            "policy":{
+               "elapsedTimeMetric":{
+                  
+               },
+               "cancelAfter":{
+                  
+               }
+            },
+            "parameters":{
+               "InitialPath":{
+                  "type":"string",
+                  "defaultValue":"datasharkx/Inner1"
+               }
+            },
+            "variables":{
+               "InitialArray":{
+                  "type":"Array"
+               },
+               "TempArray":{
+                  "type":"Array"
+               },
+               "CurrentIterationPath":{
+                  "type":"String"
+               },
+               "TempChildItem":{
+                  "type":"Array"
+               },
+               "FinalChildItem":{
+                  "type":"Array"
+               },
+               "TempSize":{
+                  "type":"String",
+                  "defaultValue":"0"
+               },
+               "FinalSize":{
+                  "type":"String",
+                  "defaultValue":"0"
+               }
+            },
+            "annotations":[
+               
+            ],
+            "lastPublishTime":"2023-02-04T12:14:37Z"
+         },
+         "dependsOn":[
+            "[concat(variables('factoryId'), '/datasets/DynamicBlobPath')]",
+            "[concat(variables('factoryId'), '/datasets/DynamicFilePath')]"
+         ]
+      },
+      {
+         "name":"[concat(parameters('factoryName'), '/DynamicBlobPath')]",
+         "type":"Microsoft.DataFactory/factories/datasets",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "linkedServiceName":{
+               "referenceName":"[parameters('ADLS')]",
+               "type":"LinkedServiceReference"
+            },
+            "parameters":{
+               "Path":{
+                  "type":"string"
+               }
+            },
+            "annotations":[
+               
+            ],
+            "type":"Binary",
+            "typeProperties":{
+               "location":{
+                  "type":"AzureBlobStorageLocation",
+                  "folderPath":{
+                     "value":"@dataset().Path",
+                     "type":"Expression"
+                  },
+                  "container":"datasharkx15"
+               }
+            }
+         },
+         "dependsOn":[
+            
+         ]
+      },
+      {
+         "name":"[concat(parameters('factoryName'), '/DynamicFilePath')]",
+         "type":"Microsoft.DataFactory/factories/datasets",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "linkedServiceName":{
+               "referenceName":"[parameters('ADLS')]",
+               "type":"LinkedServiceReference"
+            },
+            "parameters":{
+               "FilePath":{
+                  "type":"string"
+               }
+            },
+            "annotations":[
+               
+            ],
+            "type":"Binary",
+            "typeProperties":{
+               "location":{
+                  "type":"AzureBlobStorageLocation",
+                  "fileName":{
+                     "value":"@dataset().FilePath",
+                     "type":"Expression"
+                  },
+                  "container":"datasharkx15"
+               }
+            }
+         },
+         "dependsOn":[
+            
+         ]
+      }
+   ]
+}
