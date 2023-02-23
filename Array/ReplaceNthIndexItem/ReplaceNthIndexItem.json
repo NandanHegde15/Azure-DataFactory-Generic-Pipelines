@@ -1,0 +1,68 @@
+{
+    "name": "ReplaceNthIndexItem",
+    "properties": {
+        "activities": [
+            {
+                "name": "0 to N-1 Index_NewValue_N Index to End",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "TempArray",
+                    "value": {
+                        "value": "@createArray(take(variables('InputArray'),pipeline().parameters.NthIndex),pipeline().parameters.NewValue,skip(variables('InputArray'),add(pipeline().parameters.NthIndex,1)))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "OverRide Input Array",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "0 to N-1 Index_NewValue_N Index to End",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "InputArray",
+                    "value": {
+                        "value": "@json(concat('[',replace(replace(string(variables('TempArray')), '[', ''),']',''),']'))",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "NthIndex": {
+                "type": "int",
+                "defaultValue": 2
+            },
+            "NewValue": {
+                "type": "string",
+                "defaultValue": "new"
+            }
+        },
+        "variables": {
+            "TempArray": {
+                "type": "Array"
+            },
+            "InputArray": {
+                "type": "Array",
+                "defaultValue": [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e"
+                ]
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-02-23T05:18:49Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
