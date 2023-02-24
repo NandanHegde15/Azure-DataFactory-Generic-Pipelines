@@ -1,0 +1,137 @@
+{
+    "name": "SwapArrayElements",
+    "properties": {
+        "activities": [
+            {
+                "name": "Middle",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Middle",
+                    "value": {
+                        "value": "@take(skip(variables('InputArray'),add(pipeline().parameters.SwapIndex1,1)),sub(pipeline().parameters.SwapIndex2,add(pipeline().parameters.SwapIndex1,1)))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Left",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "LeftHalf",
+                    "value": {
+                        "value": "@take(variables('InputArray'), pipeline().parameters.SwapIndex1)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Right",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "RightHalf",
+                    "value": {
+                        "value": "@skip(variables('InputArray'), add(pipeline().parameters.SwapIndex2,1))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "TempArray",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Middle",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Left",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Right",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "TempArray",
+                    "value": {
+                        "value": "@createArray(if(empty(variables('LeftHalf')),'',variables('LeftHalf')),variables('InputArray')[pipeline().parameters.SwapIndex2],if(empty(variables('Middle')),'',variables('Middle')),variables('InputArray')[pipeline().parameters.SwapIndex1],if(empty(variables('RightHalf')),'',variables('RightHalf')))\n",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Swap Array",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "TempArray",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "InputArray",
+                    "value": {
+                        "value": "@json(concat('[',replace(replace(replace(replace(string(variables('TempArray')), '[', ''),']',''),'\"\",',''),'\"\"',''),']'))",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "SwapIndex1": {
+                "type": "int",
+                "defaultValue": 2
+            },
+            "SwapIndex2": {
+                "type": "int",
+                "defaultValue": 3
+            }
+        },
+        "variables": {
+            "InputArray": {
+                "type": "Array",
+                "defaultValue": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ]
+            },
+            "LeftHalf": {
+                "type": "Array"
+            },
+            "RightHalf": {
+                "type": "Array"
+            },
+            "Middle": {
+                "type": "Array"
+            },
+            "TempArray": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-02-24T11:36:09Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
