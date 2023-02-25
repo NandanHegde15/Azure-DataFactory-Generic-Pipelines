@@ -1,0 +1,333 @@
+{
+    "name": "SortArray",
+    "properties": {
+        "activities": [
+            {
+                "name": "Set Iteration Range",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "SourceArray",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Iteration",
+                    "value": {
+                        "value": "@range(0,add(length(variables('SourceArray')),-1))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Until Iteration",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "Set Iteration Range",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(length(variables('Iteration')), 0)",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "CompareValues",
+                            "description": "Compare Min Index Element Value with Max Index Element Value",
+                            "type": "IfCondition",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set NextItemValue",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "expression": {
+                                    "value": "@greater(variables('SourceArray')[int(variables('CurrentItemValue'))], variables('SourceArray')[int(variables('NextItemValue'))])",
+                                    "type": "Expression"
+                                },
+                                "ifFalseActivities": [
+                                    {
+                                        "name": "Set TempArray",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "TempArray",
+                                            "value": {
+                                                "value": "@skip(variables('Iteration'),1)",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Update Iteration",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Set TempArray",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "Iteration",
+                                            "value": {
+                                                "value": "@variables('TempArray')",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "ifTrueActivities": [
+                                    {
+                                        "name": "Left",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "SwapLeft",
+                                            "value": {
+                                                "value": "@take(variables('SourceArray'), int(variables('CurrentItemValue')))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Right",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "SwapRight",
+                                            "value": {
+                                                "value": "@skip(variables('SourceArray'), add(int(variables('NextItemValue')),1))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Middle",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "SwapMiddle",
+                                            "value": {
+                                                "value": "@take(skip(variables('SourceArray'),add(int(variables('CurrentItemValue')),1)),sub(int(variables('NextItemValue')),add(int(variables('CurrentItemValue')),1)))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "TempSwapArray",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Left",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            {
+                                                "activity": "Right",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            {
+                                                "activity": "Middle",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "TempSwapArray",
+                                            "value": {
+                                                "value": "@createArray(if(empty(variables('SwapLeft')),'',variables('SwapLeft')),variables('SourceArray')[int(variables('NextItemValue'))],if(empty(variables('SwapMiddle')),'',variables('SwapMiddle')),variables('SourceArray')[int(variables('CurrentItemValue'))],if(empty(variables('SwapRight')),'',variables('SwapRight')))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Update SourceArray",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "TempSwapArray",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "SourceArray",
+                                            "value": {
+                                                "value": "@json(concat('[',replace(replace(replace(replace(string(variables('TempSwapArray')), '[', ''),']',''),'\"\",',''),'\"\"',''),']'))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "ResetIteration",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Update SourceArray",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "Iteration",
+                                            "value": {
+                                                "value": "@range(0,add(length(variables('SourceArray')),-1))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "Set CurrentItemValue",
+                            "description": "Get the Minimum Index for Comparison",
+                            "type": "SetVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "CurrentItemValue",
+                                "value": {
+                                    "value": "@string(variables('Iteration')[0])",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Set NextItemValue",
+                            "description": "Get the Next Index for Comparison",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set CurrentItemValue",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "NextItemValue",
+                                "value": {
+                                    "value": "@string(add(int(variables('CurrentItemValue')),1))",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "SourceArray",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "SourceArray",
+                    "value": {
+                        "value": "@pipeline().parameters.InputArray",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Debug",
+                "description": "This is just to get/see final result for debugging purpose",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Until Iteration",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "FinalDebugArray",
+                    "value": {
+                        "value": "@variables('SourceArray')",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "InputArray": {
+                "type": "array",
+                "defaultValue": [
+                    "adx",
+                    "a",
+                    "ab",
+                    "xy",
+                    "ze"
+                ]
+            }
+        },
+        "variables": {
+            "Iteration": {
+                "type": "Array"
+            },
+            "NextItemValue": {
+                "type": "String"
+            },
+            "TempArray": {
+                "type": "Array"
+            },
+            "CurrentItemValue": {
+                "type": "String"
+            },
+            "SwapLeft": {
+                "type": "Array"
+            },
+            "SwapMiddle": {
+                "type": "Array"
+            },
+            "SwapRight": {
+                "type": "Array"
+            },
+            "SourceArray": {
+                "type": "Array"
+            },
+            "TempSwapArray": {
+                "type": "Array"
+            },
+            "FinalDebugArray": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-02-25T06:31:06Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
