@@ -1,0 +1,100 @@
+{
+    "name": "ReverseArray",
+    "properties": {
+        "activities": [
+            {
+                "name": "Iterate",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Set Iteration Range",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@variables('Iteration')",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "Append Array in Reverse Order",
+                            "type": "AppendVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "ReverseArray",
+                                "value": {
+                                    "value": "@pipeline().parameters.InputArray[sub(length(pipeline().parameters.InputArray), add(item(),1))]",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Set Iteration Range",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Iteration",
+                    "value": {
+                        "value": "@range(0,length(pipeline().parameters.InputArray))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Debug",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Iterate",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "FinalArray",
+                    "value": {
+                        "value": "@variables('ReverseArray')",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "InputArray": {
+                "type": "array",
+                "defaultValue": [
+                    "a",
+                    "b",
+                    "c",
+                    "d"
+                ]
+            }
+        },
+        "variables": {
+            "ReverseArray": {
+                "type": "Array"
+            },
+            "FinalArray": {
+                "type": "Array"
+            },
+            "Iteration": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-02-25T13:42:51Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
