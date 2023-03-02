@@ -1,0 +1,509 @@
+{
+   "$schema":"http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+   "contentVersion":"1.0.0.0",
+   "parameters":{
+      "factoryName":{
+         "type":"string",
+         "metadata":"Data Factory name"
+      },
+      "LS_AzureSQLDB":{
+         "type":"string"
+      },
+      "Blob":{
+         "type":"string"
+      }
+   },
+   "variables":{
+      "factoryId":"[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+   },
+   "resources":[
+      {
+         "name":"[concat(parameters('factoryName'), '/Overcome Power BI Dataset Query API Limitation')]",
+         "type":"Microsoft.DataFactory/factories/pipelines",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "activities":[
+               {
+                  "name":"Row Count",
+                  "type":"WebActivity",
+                  "dependsOn":[
+                     
+                  ],
+                  "policy":{
+                     "timeout":"0.12:00:00",
+                     "retry":0,
+                     "retryIntervalInSeconds":30,
+                     "secureOutput":false,
+                     "secureInput":false
+                  },
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "url":{
+                        "value":"@concat('https://api.powerbi.com/v1.0/myorg/datasets/',pipeline().parameters.PBIDatasetId,'/executeQueries')",
+                        "type":"Expression"
+                     },
+                     "method":"POST",
+                     "headers":{
+                        
+                     },
+                     "body":{
+                        "queries":[
+                           {
+                              "query":"@{pipeline().parameters.RowCountQuery}"
+                           }
+                        ],
+                        "serializerSettings":{
+                           "includeNulls":true
+                        }
+                     },
+                     "authentication":{
+                        "type":"MSI",
+                        "resource":"https://analysis.windows.net/powerbi/api"
+                     }
+                  }
+               },
+               {
+                  "name":"Assign Row Count",
+                  "type":"SetVariable",
+                  "dependsOn":[
+                     {
+                        "activity":"Row Count",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "variableName":"RowCount",
+                     "value":{
+                        "value":"@replace(string(last(split(string(activity('Row Count').output.results[0].tables[0].rows[0]),':'))),'}','')",
+                        "type":"Expression"
+                     }
+                  }
+               },
+               {
+                  "name":"Generate Partitions",
+                  "type":"Lookup",
+                  "dependsOn":[
+                     {
+                        "activity":"Assign Row Count",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "policy":{
+                     "timeout":"0.12:00:00",
+                     "retry":0,
+                     "retryIntervalInSeconds":30,
+                     "secureOutput":false,
+                     "secureInput":false
+                  },
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "source":{
+                        "type":"AzureSqlSource",
+                        "sqlReaderQuery":{
+                           "value":"declare @@intialize int = 1\ndeclare @@partition int = @{pipeline().parameters.PartitionRange}\ndeclare @@count int = @{variables('RowCount')}\ndeclare @@maxrun int = ceiling(@@count/@@partition)\ndeclare @@dividendcount int = @@partition\ndeclare @@con varchar(max) = (select CONCAT(@@intialize,';',@@dividendcount))\ndeclare @@counter int = 0\n\nwhile (@@counter<@@maxrun)\nbegin\n\nset @@intialize = (select @@dividendcount )\n\nset @@dividendcount = (select @@partition + @@dividendcount)\n\nset @@con = (select CONCAT(@@con,'|',@@intialize,';',@@dividendcount))\n\nset @@counter = (select @@counter+1)\n\nend\n\nselect @@con AS ConValue",
+                           "type":"Expression"
+                        },
+                        "queryTimeout":"02:00:00",
+                        "partitionOption":"None"
+                     },
+                     "dataset":{
+                        "referenceName":"DS_Cmn_SQL",
+                        "type":"DatasetReference",
+                        "parameters":{
+                           
+                        }
+                     },
+                     "firstRowOnly":false
+                  }
+               },
+               {
+                  "name":"Iterate Over Partitions",
+                  "type":"ForEach",
+                  "dependsOn":[
+                     {
+                        "activity":"Generate Partitions",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "items":{
+                        "value":"@split(string(activity('Generate Partitions').output.value[0].ConValue),'|')",
+                        "type":"Expression"
+                     },
+                     "isSequential":true,
+                     "activities":[
+                        {
+                           "name":"LowerPartitionRange",
+                           "type":"SetVariable",
+                           "dependsOn":[
+                              
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "variableName":"LowerRange",
+                              "value":{
+                                 "value":"@substring(item(),0,indexOf(item(),';'))",
+                                 "type":"Expression"
+                              }
+                           }
+                        },
+                        {
+                           "name":"UpperPartitionRange",
+                           "type":"SetVariable",
+                           "dependsOn":[
+                              
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "variableName":"UpperRange",
+                              "value":{
+                                 "value":"@substring(item(),add(indexOf(item(),';'),1),sub(sub(length(item()),indexOf(item(),';')),1))",
+                                 "type":"Expression"
+                              }
+                           }
+                        },
+                        {
+                           "name":"FinalQuery",
+                           "type":"SetVariable",
+                           "dependsOn":[
+                              {
+                                 "activity":"LowerPartitionRange",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              },
+                              {
+                                 "activity":"UpperPartitionRange",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              }
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "variableName":"FinalQuery",
+                              "value":{
+                                 "value":"DEFINE VAR Employee1 = SUMMARIZECOLUMNS(DataSharkX[EmployeeID],DataSharkX[EmployeeName],DataSharkX[Rating],\"EID\",VALUES(DataSharkX[EmployeeID])) VAR EmployeeTable = ADDCOLUMNS ( Employee1, \"Rank\", RANK.EQ( [EID],DataSharkX[EmployeeID],ASC )) EVALUATE(FILTER(EmployeeTable,[Rank]>=@{variables('LowerRange')} && [Rank]< @{variables('UpperRange')} ))",
+                                 "type":"Expression"
+                              }
+                           }
+                        },
+                        {
+                           "name":"Extract Data",
+                           "type":"WebHook",
+                           "dependsOn":[
+                              {
+                                 "activity":"FinalQuery",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              }
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "url":"https://prod-39.northeurope.logic.azure.com:443/workflows/5a71edeae65c440584ed7a6e5edd908f/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kk0N3fngebFFk7xNWJm1vTw0teAKl4zQxPA82GQmqyU",
+                              "method":"POST",
+                              "headers":{
+                                 "Content-Type":"application/json"
+                              },
+                              "body":{
+                                 "Query":"@{variables('FinalQuery')}",
+                                 "Iteration":"@{variables('LowerRange')}"
+                              },
+                              "timeout":"00:10:00"
+                           }
+                        }
+                     ]
+                  }
+               },
+               {
+                  "name":"Merge Extract",
+                  "type":"Copy",
+                  "dependsOn":[
+                     {
+                        "activity":"Iterate Over Partitions",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "policy":{
+                     "timeout":"0.12:00:00",
+                     "retry":0,
+                     "retryIntervalInSeconds":30,
+                     "secureOutput":false,
+                     "secureInput":false
+                  },
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "source":{
+                        "type":"DelimitedTextSource",
+                        "storeSettings":{
+                           "type":"AzureBlobStorageReadSettings",
+                           "recursive":true,
+                           "wildcardFolderPath":"Twitter/DataSharkX",
+                           "wildcardFileName":"*pbi.csv",
+                           "enablePartitionDiscovery":false
+                        },
+                        "formatSettings":{
+                           "type":"DelimitedTextReadSettings"
+                        }
+                     },
+                     "sink":{
+                        "type":"DelimitedTextSink",
+                        "storeSettings":{
+                           "type":"AzureBlobStorageWriteSettings",
+                           "copyBehavior":"MergeFiles"
+                        },
+                        "formatSettings":{
+                           "type":"DelimitedTextWriteSettings",
+                           "quoteAllText":true,
+                           "fileExtension":".txt"
+                        }
+                     },
+                     "enableStaging":false,
+                     "translator":{
+                        "type":"TabularTranslator",
+                        "typeConversion":true,
+                        "typeConversionSettings":{
+                           "allowDataTruncation":true,
+                           "treatBooleanAsNumber":false
+                        }
+                     }
+                  },
+                  "inputs":[
+                     {
+                        "referenceName":"Merge_Source",
+                        "type":"DatasetReference",
+                        "parameters":{
+                           
+                        }
+                     }
+                  ],
+                  "outputs":[
+                     {
+                        "referenceName":"Merge_Sink",
+                        "type":"DatasetReference",
+                        "parameters":{
+                           
+                        }
+                     }
+                  ]
+               },
+               {
+                  "name":"Delete Partitioned Files",
+                  "type":"Delete",
+                  "dependsOn":[
+                     {
+                        "activity":"Merge Extract",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "policy":{
+                     "timeout":"0.12:00:00",
+                     "retry":0,
+                     "retryIntervalInSeconds":30,
+                     "secureOutput":false,
+                     "secureInput":false
+                  },
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "dataset":{
+                        "referenceName":"Merge_Source",
+                        "type":"DatasetReference",
+                        "parameters":{
+                           
+                        }
+                     },
+                     "enableLogging":false,
+                     "storeSettings":{
+                        "type":"AzureBlobStorageReadSettings",
+                        "recursive":false,
+                        "wildcardFileName":"*pbi.csv",
+                        "enablePartitionDiscovery":false
+                     }
+                  }
+               }
+            ],
+            "policy":{
+               "elapsedTimeMetric":{
+                  
+               },
+               "cancelAfter":{
+                  
+               }
+            },
+            "parameters":{
+               "PBIDatasetId":{
+                  "type":"string",
+                  "defaultValue":"b14f2423-ef11-4e52-bce1-b370cc3a5d61"
+               },
+               "RowCountQuery":{
+                  "type":"string",
+                  "defaultValue":"EVALUATE SUMMARIZE(DataSharkX,\"Count Row\",COUNT(DataSharkX[EmployeeID]))"
+               },
+               "PartitionRange":{
+                  "type":"string",
+                  "defaultValue":"90000"
+               }
+            },
+            "variables":{
+               "LowerRange":{
+                  "type":"String"
+               },
+               "RowCount":{
+                  "type":"String"
+               },
+               "UpperRange":{
+                  "type":"String"
+               },
+               "FinalQuery":{
+                  "type":"String"
+               }
+            },
+            "annotations":[
+               
+            ],
+            "lastPublishTime":"2023-03-02T15:32:52Z"
+         },
+         "dependsOn":[
+            "[concat(variables('factoryId'), '/datasets/DS_Cmn_SQL')]",
+            "[concat(variables('factoryId'), '/datasets/Merge_Source')]",
+            "[concat(variables('factoryId'), '/datasets/Merge_Sink')]"
+         ]
+      },
+      {
+         "name":"[concat(parameters('factoryName'), '/DS_Cmn_SQL')]",
+         "type":"Microsoft.DataFactory/factories/datasets",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "linkedServiceName":{
+               "referenceName":"[parameters('LS_AzureSQLDB')]",
+               "type":"LinkedServiceReference"
+            },
+            "annotations":[
+               
+            ],
+            "type":"AzureSqlTable",
+            "schema":[
+               
+            ],
+            "typeProperties":{
+               
+            }
+         },
+         "dependsOn":[
+            
+         ]
+      },
+      {
+         "name":"[concat(parameters('factoryName'), '/Merge_Source')]",
+         "type":"Microsoft.DataFactory/factories/datasets",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "linkedServiceName":{
+               "referenceName":"[parameters('Blob')]",
+               "type":"LinkedServiceReference"
+            },
+            "annotations":[
+               
+            ],
+            "type":"DelimitedText",
+            "typeProperties":{
+               "location":{
+                  "type":"AzureBlobStorageLocation",
+                  "folderPath":"Twitter/DataSharkX",
+                  "container":"raw"
+               },
+               "columnDelimiter":",",
+               "escapeChar":"\\",
+               "firstRowAsHeader":true,
+               "quoteChar":"\""
+            },
+            "schema":[
+               
+            ]
+         },
+         "dependsOn":[
+            
+         ]
+      },
+      {
+         "name":"[concat(parameters('factoryName'), '/Merge_Sink')]",
+         "type":"Microsoft.DataFactory/factories/datasets",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "linkedServiceName":{
+               "referenceName":"[parameters('Blob')]",
+               "type":"LinkedServiceReference"
+            },
+            "annotations":[
+               
+            ],
+            "type":"DelimitedText",
+            "typeProperties":{
+               "location":{
+                  "type":"AzureBlobStorageLocation",
+                  "fileName":"CmnFile.csv",
+                  "folderPath":"Twitter/DataSharkX/Final",
+                  "container":"raw"
+               },
+               "columnDelimiter":",",
+               "escapeChar":"\\",
+               "firstRowAsHeader":true,
+               "quoteChar":"\""
+            },
+            "schema":[
+               {
+                  "type":"String"
+               },
+               {
+                  "type":"String"
+               },
+               {
+                  "type":"String"
+               },
+               {
+                  "type":"String"
+               },
+               {
+                  "type":"String"
+               }
+            ]
+         },
+         "dependsOn":[
+            
+         ]
+      }
+   ]
+}
