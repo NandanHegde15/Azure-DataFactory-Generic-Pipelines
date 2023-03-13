@@ -1,0 +1,70 @@
+{
+    "name": "Rounding Functions",
+    "properties": {
+        "activities": [
+            {
+                "name": "ROUND",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Round",
+                    "value": {
+                        "value": "@if(greaterOrEquals(pipeline().parameters.Decimals,0 ),\n    if(greater(length(split(pipeline().parameters.Input, '.')), 1),  \n        if(less(pipeline().parameters.Decimals,length(split(pipeline().parameters.Input,'.')[1])),  \n            if(less(4,int(substring(split(pipeline().parameters.Input,'.')[1],pipeline().parameters.Decimals,1))),  \n                concat(split(pipeline().parameters.Input,'.')[0],'.', string(add(1,int(substring(split(pipeline().parameters.Input,'.')[1],0,pipeline().parameters.Decimals))))),  \n                concat(split(pipeline().parameters.Input,'.')[0],'.', string(substring(split(pipeline().parameters.Input,'.')[1],0,pipeline().parameters.Decimals)))),  \n        pipeline().parameters.Input),   \n    pipeline().parameters.Input),\nif(less(float(pipeline().parameters.Input),0),string(add(int(split(pipeline().parameters.Input,'.')[0]),int(substring(split(pipeline().parameters.Input,'.')[0],sub(length(split(pipeline().parameters.Input,'.')[0]),mul(pipeline().parameters.Decimals,-1)),mul(pipeline().parameters.Decimals,-1))))),\nstring(sub(int(split(pipeline().parameters.Input,'.')[0]),int(substring(split(pipeline().parameters.Input,'.')[0],sub(length(split(pipeline().parameters.Input,'.')[0]),mul(pipeline().parameters.Decimals,-1)),mul(pipeline().parameters.Decimals,-1)))))))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "CEILING",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Ceiling",
+                    "value": {
+                        "value": "@if (greater(length(split(pipeline().parameters.Input, '.')), 1),\n   if (greater(int(split(pipeline().parameters.Input, '.')[1]), 0),\n      if (less(float(pipeline().parameters.Input),0),string(split(pipeline().parameters.Input, '.')[0]) , \t\n\t   string(add(int(split(pipeline().parameters.Input, '.')[0]), 1))), \n   string(split(pipeline().parameters.Input, '.')[0])),\npipeline().parameters.Input)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "FLOOR",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Floor",
+                    "value": {
+                        "value": "@if(greater(length(split(pipeline().parameters.Input,'.')), 1),\n    if(greater(int(split(pipeline().parameters.Input,'.')[1]),0),\n        if(less(float(pipeline().parameters.Input),0),string(add(int(split(pipeline().parameters.Input,'.')[0]),-1)),\n        string(split(pipeline().parameters.Input,'.')[0])),\n    string(split(pipeline().parameters.Input,'.')[0])) , \npipeline().parameters.Input)",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "Input": {
+                "type": "string",
+                "defaultValue": "235.415"
+            },
+            "Decimals": {
+                "type": "int",
+                "defaultValue": 2
+            }
+        },
+        "variables": {
+            "Round": {
+                "type": "String"
+            },
+            "Ceiling": {
+                "type": "String"
+            },
+            "Floor": {
+                "type": "String"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-03-11T14:58:20Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
