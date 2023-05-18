@@ -1,0 +1,182 @@
+{
+   "$schema":"http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+   "contentVersion":"1.0.0.0",
+   "parameters":{
+      "factoryName":{
+         "type":"string",
+         "metadata":"Data Factory name"
+      }
+   },
+   "variables":{
+      "factoryId":"[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+   },
+   "resources":[
+      {
+         "name":"[concat(parameters('factoryName'), '/GetManuallyTriggeredPipelineUserDetails')]",
+         "type":"Microsoft.DataFactory/factories/pipelines",
+         "apiVersion":"2018-06-01",
+         "properties":{
+            "activities":[
+               {
+                  "name":"ResourceURI",
+                  "type":"SetVariable",
+                  "dependsOn":[
+                     
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "variableName":"ResourceURI",
+                     "value":{
+                        "value":"@concat('''','/subscriptions/',pipeline().parameters.SubscriptionID,'/resourcegroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().DataFactory,'/pipelines/',pipeline().Pipeline,'''')",
+                        "type":"Expression"
+                     }
+                  }
+               },
+               {
+                  "name":"UntilUserDetailisFetched",
+                  "type":"Until",
+                  "dependsOn":[
+                     {
+                        "activity":"ResourceURI",
+                        "dependencyConditions":[
+                           "Succeeded"
+                        ]
+                     }
+                  ],
+                  "userProperties":[
+                     
+                  ],
+                  "typeProperties":{
+                     "expression":{
+                        "value":"@if(empty(activity('GetActivityLogs').output.value),false,true)",
+                        "type":"Expression"
+                     },
+                     "activities":[
+                        {
+                           "name":"GetActivityLogs",
+                           "type":"WebActivity",
+                           "dependsOn":[
+                              
+                           ],
+                           "policy":{
+                              "timeout":"0.12:00:00",
+                              "retry":0,
+                              "retryIntervalInSeconds":30,
+                              "secureOutput":false,
+                              "secureInput":false
+                           },
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "url":{
+                                 "value":"@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionID,'/providers/microsoft.insights/eventtypes/management/values?api-version=2015-04-01&$filter=eventTimestamp ge ','''',formatDateTime(pipeline().TriggerTime, 'yyyy-MM-ddTHH:mm:ss'),'Z' ,'''' ,' and resourceUri eq ', variables('ResourceURI'))",
+                                 "type":"Expression"
+                              },
+                              "method":"GET",
+                              "headers":{
+                                 
+                              },
+                              "authentication":{
+                                 "type":"MSI",
+                                 "resource":"https://management.azure.com"
+                              }
+                           }
+                        },
+                        {
+                           "name":"ValidateWhetherActivityLogIsRefreshed",
+                           "type":"IfCondition",
+                           "dependsOn":[
+                              {
+                                 "activity":"GetActivityLogs",
+                                 "dependencyConditions":[
+                                    "Succeeded"
+                                 ]
+                              }
+                           ],
+                           "userProperties":[
+                              
+                           ],
+                           "typeProperties":{
+                              "expression":{
+                                 "value":"@empty(activity('GetActivityLogs').output.value)",
+                                 "type":"Expression"
+                              },
+                              "ifFalseActivities":[
+                                 {
+                                    "name":"SetUserDetails",
+                                    "type":"SetVariable",
+                                    "dependsOn":[
+                                       
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "variableName":"UserName",
+                                       "value":{
+                                          "value":"@activity('GetActivityLogs').output.value[0].caller",
+                                          "type":"Expression"
+                                       }
+                                    }
+                                 }
+                              ],
+                              "ifTrueActivities":[
+                                 {
+                                    "name":"Wait",
+                                    "type":"Wait",
+                                    "dependsOn":[
+                                       
+                                    ],
+                                    "userProperties":[
+                                       
+                                    ],
+                                    "typeProperties":{
+                                       "waitTimeInSeconds":60
+                                    }
+                                 }
+                              ]
+                           }
+                        }
+                     ],
+                     "timeout":"0.12:00:00"
+                  }
+               }
+            ],
+            "policy":{
+               "elapsedTimeMetric":{
+                  
+               },
+               "cancelAfter":{
+                  
+               }
+            },
+            "parameters":{
+               "SubscriptionID":{
+                  "type":"string"
+               },
+               "ResourceGroupName":{
+                  "type":"string"
+               }
+            },
+            "variables":{
+               "ResourceURI":{
+                  "type":"String"
+               },
+               "UserName":{
+                  "type":"String"
+               }
+            },
+            "annotations":[
+               
+            ],
+            "lastPublishTime":"2023-05-18T09:06:16Z"
+         },
+         "dependsOn":[
+            
+         ]
+      }
+   ]
+}
