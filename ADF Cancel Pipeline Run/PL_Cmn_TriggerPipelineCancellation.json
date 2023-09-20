@@ -1,0 +1,47 @@
+{
+    "name": "PL_Cmn_TriggerPipelineCancellation",
+    "properties": {
+        "activities": [
+            {
+                "name": "TriggerCancelPipelineRun",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionID,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.DataFactoryName,'/pipelineruns/',pipeline().parameters.PipelineRunID,'/cancel?isRecursive=true&api-version=2018-06-01')",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": " ",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "SubscriptionID": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            },
+            "DataFactoryName": {
+                "type": "string"
+            },
+            "PipelineRunID": {
+                "type": "string"
+            }
+        },
+        "annotations": []
+    }
+}
