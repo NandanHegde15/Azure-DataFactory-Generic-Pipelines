@@ -1,0 +1,241 @@
+{
+    "name": "AutoCancelLongRunningPipelines",
+    "properties": {
+        "activities": [
+            {
+                "name": "Wait1",
+                "type": "Wait",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 180
+                }
+            },
+            {
+                "name": "Until1",
+                "type": "Until",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(not(empty(variables('PipelineStatus'))),greaterOrEquals( variables('ExecutionTime'),pipeline().parameters.TimeoutInSec))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Wait3",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": {
+                                    "value": "@pipeline().parameters.QueueTimeInSec",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Set TempExecutionTime",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Wait3",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "TempExecutionTime",
+                                "value": {
+                                    "value": "@add(variables('ExecutionTime'),pipeline().parameters.QueueTimeInSec)",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Set ExecutionTime",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set TempExecutionTime",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "ExecutionTime",
+                                "value": {
+                                    "value": "@variables('TempExecutionTime')",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "Wait2",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "Fail1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 60
+                }
+            },
+            {
+                "name": "Set Pipeline Status",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Wait1",
+                        "dependencyConditions": [
+                            "Completed"
+                        ]
+                    },
+                    {
+                        "activity": "Wait2",
+                        "dependencyConditions": [
+                            "Completed",
+                            "Skipped"
+                        ]
+                    },
+                    {
+                        "activity": "Fail1",
+                        "dependencyConditions": [
+                            "Completed",
+                            "Skipped"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "PipelineStatus",
+                    "value": {
+                        "value": "@if(empty(replace(concat(activity('Wait1').error?.message,'^|',\nactivity('Wait2')?.error?.message),'^|',activity('Fail1')?.error?.message)),'Success','Failure')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Fail1",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Wait1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "123",
+                    "errorCode": "123"
+                }
+            },
+            {
+                "name": "IfNotify",
+                "description": "Check whether the Until exit was due to normal pipeline completion (Success or failure) to avoid notification/Cancellation or due to timeout",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Until1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(empty(variables('PipelineStatus')))",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "TriggerCancelPipelineRun",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionID,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().DataFactory,'/pipelineruns/',pipeline().RunId,'/cancel?isRecursive=true&api-version=2018-06-01')",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://management.azure.com"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "TimeoutInSec": {
+                "type": "int",
+                "defaultValue": 120
+            },
+            "QueueTimeInSec": {
+                "type": "int",
+                "defaultValue": 60
+            },
+            "SubscriptionID": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            }
+        },
+        "variables": {
+            "PipelineStatus": {
+                "type": "String"
+            },
+            "ExecutionTime": {
+                "type": "Integer",
+                "defaultValue": 0
+            },
+            "TempExecutionTime": {
+                "type": "Integer",
+                "defaultValue": 0
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2023-09-20T10:12:09Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
