@@ -135,7 +135,7 @@
                 "typeProperties": {
                     "variableName": "PipelineStatus",
                     "value": {
-                        "value": "@if(empty(replace(concat(activity('Wait1').error?.message,'^|',\nactivity('Wait2')?.error?.message),'^|',activity('Fail1')?.error?.message)),'Success','Failure')",
+                        "value": "@if(empty(replace(concat(activity('Wait1').error?.message,'^|',\nactivity('Wait2')?.error?.message,'^|',activity('Fail1')?.error?.message),'^|','')),'Success','Failure')",
                         "type": "Expression"
                     }
                 }
@@ -215,10 +215,12 @@
                 "defaultValue": 60
             },
             "SubscriptionID": {
-                "type": "string"
+                "type": "string",
+                "defaultValue": "f058c671-dac4-455c-b502-46784677125a"
             },
             "ResourceGroupName": {
-                "type": "string"
+                "type": "string",
+                "defaultValue": "DataSharkX"
             }
         },
         "variables": {
