@@ -1,0 +1,354 @@
+{
+    "name": "DATEDIFF Function",
+    "properties": {
+        "activities": [
+            {
+                "name": "Date1",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Tick1",
+                    "value": {
+                        "value": "@ticks(pipeline().parameters.Date1)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Date2",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Tick2",
+                    "value": {
+                        "value": "@ticks(pipeline().parameters.Date2)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "DATEDIFF",
+                "type": "Switch",
+                "dependsOn": [
+                    {
+                        "activity": "Date1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Date2",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "on": {
+                        "value": "@pipeline().parameters.Interval",
+                        "type": "Expression"
+                    },
+                    "cases": [
+                        {
+                            "value": "Year",
+                            "activities": [
+                                {
+                                    "name": "Year",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@sub(int(formatDateTime(pipeline().parameters.Date2,'yyyy')),int(formatDateTime(pipeline().parameters.Date1,'yyyy')))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Quarter",
+                            "activities": [
+                                {
+                                    "name": "TempQuarter",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "TempQuarter",
+                                        "value": {
+                                            "value": "@string(div(sub(add(mul(int(formatDateTime(pipeline().parameters.Date2,'yyyy')),12),int(formatDateTime(pipeline().parameters.Date2,'MM'))),add(mul(int(formatDateTime(pipeline().parameters.Date1,'yyyy')),12),int(formatDateTime(pipeline().parameters.Date1,'MM')))),3.0))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "Quarter",
+                                    "type": "SetVariable",
+                                    "dependsOn": [
+                                        {
+                                            "activity": "TempQuarter",
+                                            "dependencyConditions": [
+                                                "Succeeded"
+                                            ]
+                                        }
+                                    ],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@if (greater(length(split(variables('TempQuarter'), '.')), 1),\n   if (greater(int(split(variables('TempQuarter'), '.')[1]), 0),\n      if (less(float(variables('TempQuarter')),0),string(split(variables('TempQuarter'), '.')[0]) , \t\n\t   add(int(split(variables('TempQuarter'), '.')[0]), 1)), \n   split(variables('TempQuarter'), '.')[0]),\nint(variables('TempQuarter')))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Month",
+                            "activities": [
+                                {
+                                    "name": "Month",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@sub(add(mul(sub(int(formatDateTime(pipeline().parameters.Date2,'yyyy')),int(formatDateTime(pipeline().parameters.Date1,'yyyy'))),12),int(formatDateTime(pipeline().parameters.Date2,'MM'))),int(formatDateTime(pipeline().parameters.Date1,'MM')))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Day",
+                            "activities": [
+                                {
+                                    "name": "Day",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Day'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Week",
+                            "activities": [
+                                {
+                                    "name": "Week",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Week'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Hour",
+                            "activities": [
+                                {
+                                    "name": "Hour",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Hour'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Minute",
+                            "activities": [
+                                {
+                                    "name": "Minute",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Minute'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Second",
+                            "activities": [
+                                {
+                                    "name": "Second",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Second'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "value": "Millisecond",
+                            "activities": [
+                                {
+                                    "name": "Millisecond",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "DATEDIFF",
+                                        "value": {
+                                            "value": "@div(sub(variables('Tick2'),variables('Tick1')),variables('Millisecond'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "defaultActivities": [
+                        {
+                            "name": "Wrong Interval",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": "Please provide a correct Interval",
+                                "errorCode": "100"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "Date1": {
+                "type": "string",
+                "defaultValue": "2015/08/25 07:00"
+            },
+            "Date2": {
+                "type": "string",
+                "defaultValue": "2017/08/25 12:45"
+            },
+            "Interval": {
+                "type": "string"
+            }
+        },
+        "variables": {
+            "Tick1": {
+                "type": "Integer"
+            },
+            "Tick2": {
+                "type": "Integer"
+            },
+            "DATEDIFF": {
+                "type": "Integer"
+            },
+            "Week": {
+                "type": "Integer",
+                "defaultValue": 6048000000000
+            },
+            "Day": {
+                "type": "Integer",
+                "defaultValue": 864000000000
+            },
+            "Hour": {
+                "type": "Integer",
+                "defaultValue": 36000000000
+            },
+            "Minute": {
+                "type": "Integer",
+                "defaultValue": 600000000
+            },
+            "Second": {
+                "type": "Integer",
+                "defaultValue": 10000000
+            },
+            "Millisecond": {
+                "type": "Integer",
+                "defaultValue": 10000
+            },
+            "TempQuarter": {
+                "type": "String"
+            }
+        },
+        "annotations": []
+    }
+}
