@@ -1,0 +1,138 @@
+{
+    "name": "Power BI Semantic Model Refresh",
+    "objectId": "c3b65772-0f28-465e-8612-e0dd0ef1fe67",
+    "properties": {
+        "activities": [
+            {
+                "name": "Trigger Power BI Refresh",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json"
+                    },
+                    "relativeUrl": {
+                        "value": "/myorg/groups/@{pipeline().parameters.GroupId}/datasets/@{pipeline().parameters.SemanticModelId}/refreshes",
+                        "type": "Expression"
+                    },
+                    "body": {
+                        "notifyoption": ""
+                    }
+                },
+                "externalReferences": {
+                    "connection": "c01d1e4d-0837-4990-83b5-fe6539906301"
+                }
+            },
+            {
+                "name": "StatusUntilPowerBIRefreshes",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "Trigger Power BI Refresh",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(first(json(string(activity('Get Refresh Details').output)).value).status,'Unknown'))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Get Refresh Details",
+                            "type": "WebActivity",
+                            "dependsOn": [
+                                {
+                                    "activity": "WaitFor30Sec",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "method": "GET",
+                                "relativeUrl": {
+                                    "value": "/myorg/groups/@{pipeline().parameters.GroupId}/datasets/@{pipeline().parameters.SemanticModelId}/refreshes?$top=1",
+                                    "type": "Expression"
+                                }
+                            },
+                            "externalReferences": {
+                                "connection": "c01d1e4d-0837-4990-83b5-fe6539906301"
+                            }
+                        },
+                        {
+                            "name": "WaitFor30Sec",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 30
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "If Refresh Failed",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "StatusUntilPowerBIRefreshes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(first(json(string(activity('Get Refresh Details').output)).value).status,'Failed')",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [],
+                    "ifTrueActivities": [
+                        {
+                            "name": "Throw Error",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "typeProperties": {
+                                "message": {
+                                    "value": "@string(json(first(json(string(activity('Get Refresh Details').output))?.value)?.serviceExceptionJson))",
+                                    "type": "Expression"
+                                },
+                                "errorCode": "5100"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "GroupId": {
+                "type": "string"
+            },
+            "SemanticModelId": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "lastModifiedByObjectId": "8a12e2d5-e916-446f-9774-6f6e7349c25b",
+        "lastPublishTime": "2024-02-08T07:26:50Z"
+    }
+}
