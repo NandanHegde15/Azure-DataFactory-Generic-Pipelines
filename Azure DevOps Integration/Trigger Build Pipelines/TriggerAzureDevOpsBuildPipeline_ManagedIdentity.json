@@ -1,0 +1,154 @@
+{
+    "name": "TriggerAzureDevOpsBuildPipeline_ManagedIdentity",
+    "properties": {
+        "activities": [
+            {
+                "name": "TriggerBuilldPipeline",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "Application/json"
+                    },
+                    "url": {
+                        "value": "@concat('https://dev.azure.com/',replace(pipeline().parameters.organization,' ','%20'),'/',replace(pipeline().parameters.project,' ','%20'),'/_apis/pipelines/',pipeline().parameters.pipelineId,'/runs?api-version=6.0-preview.1')",
+                        "type": "Expression"
+                    },
+                    "body": {
+                        "resources": {
+                            "repositories": {
+                                "self": {
+                                    "refName": "refs/heads/main"
+                                }
+                            }
+                        }
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "499b84ac-1321-427f-aa17-267ca6975798"
+                    }
+                }
+            },
+            {
+                "name": "UntilBuildPipelineExecutes",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "TriggerBuilldPipeline",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('GetBuildPipelineDetails').output.state,'completed')",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "GetBuildPipelineDetails",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "method": "GET",
+                                "url": {
+                                    "value": "@concat('https://dev.azure.com/',replace(pipeline().parameters.organization,' ','%20'),'/',replace(pipeline().parameters.project,' ','%20'),'/_apis/pipelines/',pipeline().parameters.pipelineId,'/runs/',string(activity('TriggerBuilldPipeline').output.id),'?api-version=7.0')",
+                                    "type": "Expression"
+                                },
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "499b84ac-1321-427f-aa17-267ca6975798"
+                                }
+                            }
+                        },
+                        {
+                            "name": "WaitFor30Sec",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "GetBuildPipelineDetails",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 30
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "CheckBuildPipelineStatus",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "UntilBuildPipelineExecutes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(activity('GetBuildPipelineDetails').output.result,'succeeded'))",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ThrowErrorInCaseOfFailureOrCancellation",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": {
+                                    "value": "@concat('Pipeline ',activity('GetBuildPipelineDetails').output.pipeline.name,' ',activity('GetBuildPipelineDetails').output.result)",
+                                    "type": "Expression"
+                                },
+                                "errorCode": "123"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "organization": {
+                "type": "string"
+            },
+            "project": {
+                "type": "string"
+            },
+            "pipelineId": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2024-02-10T05:36:36Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
