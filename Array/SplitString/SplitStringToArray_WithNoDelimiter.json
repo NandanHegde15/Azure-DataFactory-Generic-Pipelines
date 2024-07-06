@@ -1,0 +1,101 @@
+{
+    "name": "SplitStringToArray_WithNoDelimiter",
+    "properties": {
+        "activities": [
+            {
+                "name": "Input String Range",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "InputStringRange",
+                    "value": {
+                        "value": "@range(0, length(pipeline().parameters.InputString))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "String Array Iteration",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Input String Range",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@variables('InputStringRange')",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "Append Array",
+                            "type": "AppendVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "OutputArray",
+                                "value": {
+                                    "value": "@substring(pipeline().parameters.InputString, item(), 1)",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Final Output",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "String Array Iteration",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "FinalOutput",
+                    "value": {
+                        "value": "@variables('OutputArray')",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "InputString": {
+                "type": "string",
+                "defaultValue": "abcde"
+            }
+        },
+        "variables": {
+            "InputStringRange": {
+                "type": "Array"
+            },
+            "OutputArray": {
+                "type": "Array"
+            },
+            "FinalOutput": {
+                "type": "Array"
+            }
+        },
+        "annotations": []
+    }
+}
