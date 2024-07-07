@@ -1,0 +1,246 @@
+{
+    "name": "IndexofNthOccurenceOfCharacterinString",
+    "properties": {
+        "activities": [
+            {
+                "name": "Input String Range",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "InputStringRange",
+                    "value": {
+                        "value": "@range(0, length(pipeline().parameters.InputString))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "String Array Iteration",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Input String Range",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@variables('InputStringRange')",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "Append Array",
+                            "type": "AppendVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "StringArray",
+                                "value": {
+                                    "value": "@substring(pipeline().parameters.InputString, item(), 1)",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Character Occurence",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "String Array Iteration",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@variables('InputStringRange')",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "Compare",
+                            "type": "IfCondition",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "expression": {
+                                    "value": "@equals(variables('StringArray')[item()],pipeline().parameters.SearchCharacter)",
+                                    "type": "Expression"
+                                },
+                                "ifTrueActivities": [
+                                    {
+                                        "name": "Assign Temp Count",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "policy": {
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "TempCount",
+                                            "value": {
+                                                "value": "@add(variables('Count'), 1)",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Increment Count",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Assign Temp Count",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "Count",
+                                            "value": {
+                                                "value": "@variables('TempCount')",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Set Temp Index Position",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Increment Count",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "FinalPositionIndex",
+                                            "value": {
+                                                "value": "@variables('PositionIndex')",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Set Index Position",
+                                        "type": "SetVariable",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Set Temp Index Position",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "PositionIndex",
+                                            "value": {
+                                                "value": "@if(equals(variables('Count'),pipeline().parameters.OccurenceCount),string(item()) ,variables('FinalPositionIndex'))",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Set Final Index Position",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Character Occurence",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "FinalPositionIndex",
+                    "value": {
+                        "value": "@if(not(contains(pipeline().parameters.InputString,pipeline().parameters.SearchCharacter)),'No existence of Character',if(equals(variables('PositionIndex'), ''),'No Matching Index Position',string(variables('PositionIndex'))))",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "InputString": {
+                "type": "string",
+                "defaultValue": "aba"
+            },
+            "OccurenceCount": {
+                "type": "int",
+                "defaultValue": 1
+            },
+            "SearchCharacter": {
+                "type": "string",
+                "defaultValue": "a"
+            }
+        },
+        "variables": {
+            "InputStringRange": {
+                "type": "Array"
+            },
+            "StringArray": {
+                "type": "Array"
+            },
+            "Count": {
+                "type": "Integer",
+                "defaultValue": 0
+            },
+            "PositionIndex": {
+                "type": "String"
+            },
+            "TempCount": {
+                "type": "Integer"
+            },
+            "FinalPositionIndex": {
+                "type": "String"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2024-07-07T06:27:27Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
