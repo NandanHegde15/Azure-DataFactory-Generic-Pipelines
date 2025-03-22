@@ -1,0 +1,146 @@
+{
+    "name": "TriggerFabricDataPipelineviaManagedIdentity",
+    "properties": {
+        "activities": [
+            {
+                "name": "TriggerFabricDataPipeline",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "POST",
+                    "url": {
+                        "value": "@concat('https://api.fabric.microsoft.com/v1/workspaces/',pipeline().parameters.WorkspaceId,'/items/',pipeline().parameters.PipelineId,'/jobs/instances?jobType=Pipeline')",
+                        "type": "Expression"
+                    },
+                    "body": " ",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://api.fabric.microsoft.com/"
+                    }
+                }
+            },
+            {
+                "name": "StatusUntilDataPipelineCompletes",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "TriggerFabricDataPipeline",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@not(equals(activity('GetPipelineStatus').output.status, 'InProgress'))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "GetPipelineStatus",
+                            "type": "WebActivity",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_WaitFor300Sec",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "method": "GET",
+                                "url": {
+                                    "value": "@concat('https://api.fabric.microsoft.com/v1/workspaces/',pipeline().parameters.WorkspaceId,'/items/',pipeline().parameters.PipelineId,'/jobs/instances/',activity('TriggerFabricDataPipeline').output.id)",
+                                    "type": "Expression"
+                                },
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://api.fabric.microsoft.com/"
+                                }
+                            }
+                        },
+                        {
+                            "name": "ACT_Cmn_WaitFor300Sec",
+                            "description": "This activity would wait for 300 sec",
+                            "type": "Wait",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 300
+                            }
+                        }
+                    ],
+                    "timeout": "0.12:00:00"
+                }
+            },
+            {
+                "name": "IfDataPipelineFailed",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "StatusUntilDataPipelineCompletes",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('GetPipelineStatus').output.status,'Failed' )",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ThrowErrorOnFailure",
+                            "type": "Fail",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": {
+                                    "value": "@activity('GetPipelineStatus').output.failureReason.message",
+                                    "type": "Expression"
+                                },
+                                "errorCode": {
+                                    "value": "@activity('GetPipelineStatus').output.failureReason.errorCode",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "WorkspaceId": {
+                "type": "string",
+                "defaultValue": "996076ea-64da-4998-b868-bc71b3d4a318"
+            },
+            "PipelineId": {
+                "type": "string",
+                "defaultValue": "c496dd4c-bdcc-477d-b076-d1d196551208"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2025-03-21T15:44:11Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
