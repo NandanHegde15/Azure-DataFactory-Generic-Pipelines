@@ -1,0 +1,131 @@
+{
+    "name": "PL_Cube_FirewallUpdate_Automate",
+    "properties": {
+        "description": "This pipeline will whitelist IP in Azure Analysis Service",
+        "activities": [
+            {
+                "name": "ACT_GetFirewallRules",
+                "description": "",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "GET",
+                    "url": {
+                        "value": "https://management.azure.com/subscriptions/@{pipeline().parameters.SubscriptionId}/resourceGroups/@{pipeline().parameters.ResourceGroupName}/providers/Microsoft.AnalysisServices/servers/@{pipeline().parameters.ServerName}?api-version=2017-08-01",
+                        "type": "Expression"
+                    },
+                    "body": {
+                        "value": "{\n\t\"properties\": {\n\t\t\"ipV4FirewallSettings\": {\n\t\t\t\"firewallRules\": [\n\t\t\t\t{\n\t\t\t\t\t\"firewallRuleName\": \"@{pipeline().parameters.IpFirewallName}\",\n\t\t\t\t\t\"rangeStart\": \"@{pipeline().parameters.IpStartRange}\",\n\t\t\t\t\t\"rangeEnd\": \"@{pipeline().parameters.IpEndRange}\"\n\t\t\t\t}\n\t\t\t],\n\t\t\t\"enablePowerBIService\": true\n\t\t}\n\n}",
+                        "type": "Expression"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com/"
+                    }
+                }
+            },
+            {
+                "name": "ACT_MergeIPWithExisting",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_GetFirewallRules",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "Range",
+                    "value": {
+                        "value": "@if(\n  contains(activity('ACT_GetFirewallRules').output.properties, 'ipV4FirewallSettings'),\n  json(concat(\n    '[',\n      join(\n        activity('ACT_GetFirewallRules').output.properties.ipV4FirewallSettings.firewallRules,\n        ','\n      ),\n      ',{\"firewallRuleName\":\"',\n        pipeline().parameters.IPFirewallName,\n        '\",\"rangeStart\":\"',\n        pipeline().parameters.IPStartRange,\n        '\",\"rangeEnd\":\"',\n        pipeline().parameters.IPEndRange,\n      '\"}',\n    ']'\n  )),\n  json(concat(\n    '[{\"firewallRuleName\":\"',\n    pipeline().parameters.IPFirewallName,\n    '\",\"rangeStart\":\"',\n    pipeline().parameters.IPStartRange,\n    '\",\"rangeEnd\":\"',\n    pipeline().parameters.IPEndRange,\n    '\"}]'\n  ))\n)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "ACT_UpdateIP",
+                "description": "Rotates the specified key of the given storage account",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_MergeIPWithExisting",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "PATCH",
+                    "url": {
+                        "value": "https://management.azure.com/subscriptions/@{pipeline().parameters.SubscriptionId}/resourceGroups/@{pipeline().parameters.ResourceGroupName}/providers/Microsoft.AnalysisServices/servers/@{pipeline().parameters.ServerName}?api-version=2017-08-01",
+                        "type": "Expression"
+                    },
+                    "body": {
+                        "value": "{\n\t\"properties\": {\n\t\t\"ipV4FirewallSettings\": {\n\t\t\t\"firewallRules\": @{variables('Range')} ,\n\t\t\t\"enablePowerBIService\": true\n\t\t}\n\t\t}\n\n}",
+                        "type": "Expression"
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com/"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "IPStartRange": {
+                "type": "string",
+                "defaultValue": "20.38.80.192"
+            },
+            "IPEndRange": {
+                "type": "string",
+                "defaultValue": "20.38.80.255"
+            },
+            "IPFirewallName": {
+                "type": "string",
+                "defaultValue": "SampleViaADF"
+            },
+            "SubscriptionId": {
+                "type": "string",
+                "defaultValue": "aadfa227-8356-48f8-ac09-c87e7fda15a4"
+            },
+            "ResourceGroupName": {
+                "type": "string",
+                "defaultValue": "MyCSharpCorner_RG"
+            },
+            "ServerName": {
+                "type": "string",
+                "defaultValue": "aascube"
+            }
+        },
+        "variables": {
+            "Range": {
+                "type": "Array"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2025-07-07T10:56:26Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
