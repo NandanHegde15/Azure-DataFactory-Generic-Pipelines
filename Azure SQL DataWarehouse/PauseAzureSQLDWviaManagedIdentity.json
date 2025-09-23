@@ -1,0 +1,169 @@
+{
+    "name": "PL_Cmn_PausePool",
+    "properties": {
+        "description": "This pipeline would Pause the Azure Data Warehouse if it is in Online State at the start of data flows",
+        "activities": [
+            {
+                "name": "ACT_Cmn_CheckPoolStatus",
+                "description": "This activity is used to check the status of Pool",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "GET",
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.PoolName,'?api-version=2020-08-01-preview')",
+                        "type": "Expression"
+                    },
+                    "body": " ",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com/"
+                    }
+                }
+            },
+            {
+                "name": "ACT_Cmn_RetryTillPoolPauses",
+                "description": "This activity would run until Pool is paused",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_ResumeIfPaused",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('ACT_Cmn_ReCheckPoolStatus').output.properties.status,'Paused')",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Cmn_ReCheckPoolStatus",
+                            "description": "This activity is used to check the status of Pool",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "method": "GET",
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.PoolName,'?api-version=2020-08-01-preview')",
+                                    "type": "Expression"
+                                },
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://management.azure.com/"
+                                }
+                            }
+                        },
+                        {
+                            "name": "ACT_Cmn_WaitFor10Sec",
+                            "description": "This activity would wait for 10 secs",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "ACT_Cmn_ReCheckPoolStatus",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 10
+                            }
+                        }
+                    ],
+                    "timeout": "7.00:00:00"
+                }
+            },
+            {
+                "name": "ACT_Cmn_ResumeIfPaused",
+                "description": "This activity is used to check if the Pool is in Online Status and if it is Online then it Pauses the Pool",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "ACT_Cmn_CheckPoolStatus",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(activity('ACT_Cmn_CheckPoolStatus').output.properties.status,'Online')",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "ACT_Cmn_PausePool",
+                            "description": "This activity will Pause the Pool",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "method": "POST",
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.Sql/servers/',pipeline().parameters.ServerName,'/databases/',pipeline().parameters.PoolName,'/pause?api-version=2024-11-01-preview')",
+                                    "type": "Expression"
+                                },
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://management.azure.com/"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "SubscriptionId": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "ResourceGroupName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "ServerName": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "PoolName": {
+                "type": "string",
+                "defaultValue": ""
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-02-10T10:04:12Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
