@@ -1,0 +1,110 @@
+{
+    "name": "PL_Cmn_CancelPipelineRuns",
+    "properties": {
+        "activities": [
+            {
+                "name": "Act_Web_GetActiveRuns",
+                "description": "Get list of all Pipeline run ids which are either In Progress or in Queue",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json"
+                    },
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.ADFName,'/queryPipelineRuns?api-version=2018-06-01')",
+                        "type": "Expression"
+                    },
+                    "body": {
+                        "lastUpdatedAfter": "@{formatDateTime(addHours(utcNow(),-1),'yyyy-MM-ddTHH:mm:ssZ')}",
+                        "lastUpdatedBefore": "@{formatDateTime(utcNow(),'yyyy-MM-ddTHH:mm:ssZ')}",
+                        "filters": [
+                            {
+                                "operand": "Status",
+                                "operator": "In",
+                                "values": [
+                                    "InProgress",
+                                    "Queued"
+                                ]
+                            }
+                        ]
+                    },
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com/"
+                    }
+                }
+            },
+            {
+                "name": "ACT_ForEach_IterateOverRuns",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Act_Web_GetActiveRuns",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Act_Web_GetActiveRuns').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "ACT_Web_CancelPipelineRun",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "method": "POST",
+                                "headers": {
+                                    "Content-Type": "application/json"
+                                },
+                                "url": {
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.ADFName,'/pipelineruns/@{item().runId}/cancel?api-version=2018-06-01')",
+                                    "type": "Expression"
+                                },
+                                "body": " ",
+                                "authentication": {
+                                    "type": "MSI",
+                                    "resource": "https://management.azure.com/"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "SubscriptionId": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            },
+            "ADFName": {
+                "type": "string"
+            }
+        },
+        "annotations": []
+    }
+}
