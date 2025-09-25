@@ -1,0 +1,54 @@
+{
+    "name": "PL_Cmn_UpdateTriggerStatus",
+    "properties": {
+        "description": "This pipeline would start/stop trigger based on ADFTriggerStatus parameter provided. Kindly provide only start/stop as this parameter value",
+        "activities": [
+            {
+                "name": "ACT_Web_UpdateTriggerStatus",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json"
+                    },
+                    "url": {
+                        "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.ADFName,'/triggers/',pipeline().parameters.TriggerName,'/',pipeline().parameters.Status,'?api-version=2018-06-01')",
+                        "type": "Expression"
+                    },
+                    "body": " ",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.azure.com/"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "SubscriptionId": {
+                "type": "string"
+            },
+            "ResourceGroupName": {
+                "type": "string"
+            },
+            "ADFName": {
+                "type": "string"
+            },
+            "TriggerName": {
+                "type": "string"
+            },
+            "Status": {
+                "type": "string"
+            }
+        },
+        "annotations": []
+    }
+}
