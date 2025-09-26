@@ -35,6 +35,13 @@
                                     "InProgress",
                                     "Queued"
                                 ]
+                            },
+                            {
+                                "operand": "PipelineName",
+                                "operator": "Equals",
+                                "values": [
+                                    "@{pipeline().parameters.PipelineName}"
+                                ]
                             }
                         ]
                     },
@@ -80,7 +87,7 @@
                                     "Content-Type": "application/json"
                                 },
                                 "url": {
-                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.ADFName,'/pipelineruns/@{item().runId}/cancel?api-version=2018-06-01')",
+                                    "value": "@concat('https://management.azure.com/subscriptions/',pipeline().parameters.SubscriptionId,'/resourceGroups/',pipeline().parameters.ResourceGroupName,'/providers/Microsoft.DataFactory/factories/',pipeline().parameters.ADFName,'/pipelineruns/',item().runId,'/cancel?api-version=2018-06-01')",
                                     "type": "Expression"
                                 },
                                 "body": " ",
@@ -103,8 +110,13 @@
             },
             "ADFName": {
                 "type": "string"
+            },
+            "PipelineName": {
+                "type": "string"
             }
         },
-        "annotations": []
-    }
+        "annotations": [],
+        "lastPublishTime": "2025-09-25T15:42:36Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
 }
